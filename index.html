@@ -114,73 +114,186 @@
     background:var(--panel);
     box-shadow:0 1px 0 rgba(0,0,0,.4)
   }
-  /* KPI card */
-  .kpi-card{
-    background:transparent;
-    border:1px solid rgba(255,255,255,0.03);
-    border-radius:8px;
-    padding:12px;
-    margin-bottom:8px
+  .threat-wrap{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:16px;
+    padding:6px 0 18px
   }
-  .kpi-value{
-    font-size:36px;
-    font-weight:800;
-    color:var(--text);
-    margin-bottom:6px
+  .threat-gauge{
+    width:220px;
+    height:220px;
+    border-radius:50%;
+    position:relative;
+    background:radial-gradient(circle at 30% 30%, rgba(255,255,255,0.08), rgba(239,68,68,0.12) 55%, rgba(239,68,68,0.4) 100%);
+    border:6px solid rgba(239,68,68,0.9);
+    box-shadow:0 0 28px rgba(239,68,68,0.45), inset 0 0 30px rgba(0,0,0,0.6);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    overflow:hidden
   }
-  .kpi-label{
-    color:var(--muted);
+  .threat-gauge::before{
+    content:'';
+    position:absolute;
+    inset:12px;
+    border-radius:50%;
+    background:radial-gradient(circle, rgba(0,0,0,0.65), rgba(0,0,0,0.85));
+    box-shadow:0 0 24px rgba(239,68,68,0.55);
+    z-index:0
+  }
+  .threat-gauge .gauge-label{
+    position:relative;
+    z-index:1;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    font-family:"Orbitron", "Segoe UI", sans-serif
+  }
+  .threat-gauge .gauge-label span{
+    font-size:14px;
+    letter-spacing:3px;
+    color:rgba(255,255,255,0.7)
+  }
+  .threat-gauge .gauge-label strong{
+    font-size:28px;
+    letter-spacing:1px;
+    color:#ff6464;
+    text-shadow:0 0 14px rgba(255,100,100,0.8), 0 0 4px rgba(0,0,0,0.7)
+  }
+  .threat-meta{
+    width:100%;
+    display:grid;
+    grid-template-columns:repeat(2, minmax(0,1fr));
+    gap:12px;
+    text-transform:uppercase;
     font-size:12px;
-    font-weight:700;
-    text-transform:uppercase
+    letter-spacing:1px;
+    text-align:center
   }
-  .status-section{
-    border-bottom:1px solid rgba(255,255,255,0.03);
-    padding-bottom:12px;
-    margin-bottom:12px
+  .threat-meta .label{color:var(--muted);font-size:11px;display:block;margin-bottom:4px}
+  .threat-meta .value{
+    font-size:20px;
+    font-weight:800;
+    text-shadow:0 0 10px rgba(0,0,0,0.6)
   }
-  .section-title{
-    font-weight:700;
-    color:var(--text);
+  .threat-meta .value.red{color:#ff4d4f}
+  .threat-meta .value.white{color:#fff}
+  .btn.alert{
+    background:linear-gradient(135deg,#f87171 0%,#dc2626 60%,#7f1d1d 100%);
+    box-shadow:0 0 18px rgba(248,113,113,0.35);
+    font-size:15px;
+    letter-spacing:1px;
+    padding:14px 22px
+  }
+  .btn.alert:hover{box-shadow:0 0 22px rgba(248,113,113,0.55)}
+  .panel-subtitle{
     font-size:12px;
     text-transform:uppercase;
     letter-spacing:0.6px;
-    margin-bottom:10px;
+    margin:4px 0 10px;
+    color:var(--muted);
     display:flex;
     align-items:center;
     gap:8px
   }
-  .alert-item{
-    padding:10px 12px;
-    background:transparent;
-    border-left:3px solid rgba(255,255,255,0.03);
-    border-radius:4px;
-    margin-bottom:8px;
-    font-size:12px;
-    line-height:1.6;
-    color:var(--muted);
+  .track-list{
+    display:grid;
+    gap:12px
+  }
+  .track-card{
+    position:relative;
+    border:1px solid rgba(59,130,246,0.15);
+    border-radius:12px;
+    padding:14px;
+    background:linear-gradient(135deg, rgba(30,64,175,0.35) 0%, rgba(17,24,39,0.75) 100%);
+    box-shadow:0 8px 18px rgba(15,23,42,0.45);
+    overflow:hidden
+  }
+  .track-card::after{
+    content:'';
+    position:absolute;
+    inset:0;
+    border-radius:12px;
+    border:1px solid rgba(96,165,250,0.12);
+    pointer-events:none
+  }
+  .track-card header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:10px
+  }
+  .track-id{
+    font-size:16px;
+    font-weight:800;
+    letter-spacing:1px;
+    color:#93c5fd
+  }
+  .track-role{
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:1.4px;
+    padding:4px 8px;
+    border-radius:999px;
+    background:rgba(148,163,184,0.2);
+    color:#e2e8f0
+  }
+  .track-role.friendly{background:rgba(34,197,94,0.22);color:#bbf7d0}
+  .track-role.hostile{background:rgba(239,68,68,0.25);color:#fecaca}
+  .track-coords{
     font-family:monospace;
+    font-size:12px;
+    color:rgba(226,232,240,0.72);
+    margin-bottom:12px
+  }
+  .track-metrics{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.8px
+  }
+  .track-metrics span{
+    display:block;
+    color:rgba(148,163,184,0.9)
+  }
+  .track-metrics strong{
+    display:block;
+    font-size:15px;
+    color:#f8fafc;
+    margin-top:2px
+  }
+  .track-actions{
+    margin-top:14px;
+    display:flex;
+    justify-content:flex-end
+  }
+  .event-log{
+    background:rgba(15,23,42,0.6);
+    border:1px solid rgba(148,163,184,0.16);
+    border-radius:10px;
+    padding:12px;
+    max-height:260px;
+    overflow-y:auto;
+    font-family:monospace;
+    font-size:12px
+  }
+  .log-entry{
     display:flex;
     gap:10px;
+    margin-bottom:8px;
     align-items:flex-start
   }
-  .drone-item{
-    padding:10px 12px;
-    background:transparent;
-    border-left:3px solid rgba(255,255,255,0.03);
-    border-radius:4px;
-    margin-bottom:8px;
-    font-size:12px;
-    line-height:1.6;
-    font-family:monospace
-  }
-  .drone-item b{ color:var(--text); font-weight:700 }
-  .drone-coords{
-    color:var(--muted);
-    font-size:11px;
-    font-family:monospace;
-    opacity:0.9
-  }
+  .log-entry:last-child{margin-bottom:0}
+  .log-time{color:rgba(148,163,184,0.75);min-width:90px}
+  .log-msg{color:#cbd5f5;line-height:1.4}
+  .log-entry.critical .log-msg{color:#fca5a5}
+  .log-entry.success .log-msg{color:#a7f3d0}
+  .log-entry.info .log-msg{color:#bae6fd}
 </style>
 </head>
 <body>
@@ -212,32 +325,34 @@
       <div id="map"></div>
     </div>
     <div class="panel">
-      <h3 style="margin:0 0 8px">Alert Status</h3>
-      <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:14px">
-        <div class="kpi-card">
-          <div class="kpi-value" id="k1">—</div>
-          <div class="kpi-label">🎥 Active Detections</div>
+      <h3 style="margin:0 0 8px">THREAT LEVEL</h3>
+      <div class="threat-wrap">
+        <div class="threat-gauge">
+          <div class="gauge-label">
+            <span>THREAT LEVEL</span>
+            <strong>ALERTCON 1</strong>
+          </div>
         </div>
-        <div class="kpi-card">
-          <div class="kpi-value" id="k2">—</div>
-          <div class="kpi-label">✈ Active Tracks</div>
+        <div class="threat-meta">
+          <div>
+            <span class="label">Active Detections</span>
+            <span class="value red" id="threatDetections">6</span>
+          </div>
+          <div>
+            <span class="label">Active Tracks</span>
+            <span class="value white" id="threatTracks">6</span>
+          </div>
         </div>
-        <div class="kpi-card">
-          <div class="kpi-value" id="k3" style="font-size:20px">—</div>
-          <div class="kpi-label">⏱ Last Alert</div>
-        </div>
+        <button class="btn alert" id="ackAlertBtn">[ ACKNOWLEDGE ALERT ]</button>
       </div>
-
-      <div class="status-section">
-        <div class="section-title">
-          <span class="section-icon"></span> Latest Detections
-        </div>
-        <div id="alerts" style="line-height:1.4;max-height:280px;overflow-y:auto">—</div>
+      <div style="width:100%;margin-top:8px">
+        <div class="panel-subtitle">Event Log</div>
+        <div class="event-log" id="eventLog">—</div>
       </div>
     </div>
     <div class="panel">
-      <h3 style="margin:0 0 8px">🔴 Active Offense</h3>
-      <div id="dronesList" style="line-height:1.4;max-height:500px;overflow-y:auto">—</div>
+      <h3 style="margin:0 0 8px">PRIORITY TRACKS</h3>
+      <div class="track-list" id="priorityTracks">—</div>
     </div>
   </div>
 
@@ -394,6 +509,14 @@ function fmtTime(s){
   catch{ return s||''; }
 }
 
+function fmtLogTime(s){
+  try{
+    return new Date(s).toLocaleTimeString('en-GB', {hour12:false});
+  }catch{
+    return '--:--:--';
+  }
+}
+
 function trackDrone(droneId){
   // ค้นหาโดรนล่าสุดจาก routes
   const droneRoutes = routes.filter(r => r.drone_id === droneId);
@@ -408,40 +531,20 @@ function trackDrone(droneId){
 }
 
 function redraw(){
-  // KPI
-  const k1El = document.getElementById('k1');
-  const k2El = document.getElementById('k2');
-  const k3El = document.getElementById('k3');
+  const threatDetEl = document.getElementById('threatDetections');
+  const threatTracksEl = document.getElementById('threatTracks');
+  const eventLogEl = document.getElementById('eventLog');
+  const trackListEl = document.getElementById('priorityTracks');
 
-  if(k1El){
-    k1El.textContent = String(detections.length);
+  if(threatDetEl){
+    threatDetEl.textContent = String(detections.length);
   }
-  if(k2El){
+  if(threatTracksEl){
     const uniqueDrones = Array.from(new Set(routes.map(r=>r.drone_id)));
-    k2El.textContent = String(uniqueDrones.length);
-  }
-  if(k3El){
-    k3El.textContent = detections.length ? fmtTime(detections[0].ts) : '-';
+    threatTracksEl.textContent = String(uniqueDrones.length);
   }
 
-  // Alerts (2 ล่าสุด)
-  document.getElementById('alerts').innerHTML = detections.slice()
-    .sort((a,b)=>new Date(b.ts)-new Date(a.ts))
-    .slice(0,2)
-    .map(d=>{
-      const typeIcon = d.raw_type === 'friendly_uav' ? '🛡️' : '⚠️';
-      return `<div class="alert-item">
-        <div class="drone-icon-thumb">${typeIcon}</div>
-        <div>
-          <div><code>${fmtTime(d.ts)}</code> <b>${d.raw_type||'unknown'}</b></div>
-          <div class="drone-coords">${(+d.lat).toFixed(5)}, ${(+d.lon).toFixed(5)}</div>
-          <div style="color:#00ffcc; font-size:11px">Confidence: <b>${(d.confidence ?? '-')}</b></div>
-        </div>
-      </div>`;
-    })
-    .join('') || '—';
-
-  // Drones list - split by role
+  // Drones list grouped by id
   const byId = new Map();
   routes.forEach(r => {
     if(!byId.has(r.drone_id)) byId.set(r.drone_id, []);
@@ -465,35 +568,98 @@ function redraw(){
         altitude: last?.altitude,
         status: last?.status
       };
-    })
-    .sort((a,b)=>String(a.id).localeCompare(b.id));
+    });
 
-  // แสดงเฉพาะโดรนฝ่ายเราใน Active Offense
-  const offenseDrones = drones.filter(d => d.role === 'friendly');
+  if(trackListEl){
+    const prioritized = drones.slice()
+      .sort((a,b)=>{
+        const at = a.ts ? new Date(a.ts).getTime() : 0;
+        const bt = b.ts ? new Date(b.ts).getTime() : 0;
+        return bt - at || String(a.id).localeCompare(b.id);
+      })
+      .slice(0,6);
 
-  let droneHtml = offenseDrones.map(d=>{
-      const batCol = d.battery > 70 ? '#00ff88' : d.battery > 40 ? '#ffaa00' : '#ff0055';
-      const sigCol = d.signal > 75 ? '#00ff88' : d.signal > 50 ? '#ffaa00' : '#ff0055';
-      return `<div class="drone-item" style="border-left-color:#00ff88;background:linear-gradient(135deg, rgba(0,255,136,.12) 0%, rgba(0,255,136,.05) 100%)">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-          <b style="color:#00ff88">${d.id}</b>
-          <div style="display:flex;gap:4px;align-items:center">
-            <span style="font-size:9px;color:#7ba3c0;text-transform:uppercase">${d.status || 'active'}</span>
-            <button class="btn" style="padding:2px 6px;font-size:9px;background:#00ff88;color:#000;" onclick="trackDrone('${d.id}')">Track</button>
-          </div>
+    trackListEl.innerHTML = prioritized.map(d=>{
+      const lat = Number.isFinite(Number(d.lat)) ? Number(d.lat).toFixed(5) : '-';
+      const lon = Number.isFinite(Number(d.lon)) ? Number(d.lon).toFixed(5) : '-';
+      const velocityNum = Number(d.velocity);
+      const altitudeNum = Number(d.altitude);
+      const batteryNum = Number(d.battery);
+      const signalNum = Number(d.signal);
+      const velocity = Number.isFinite(velocityNum) ? `${velocityNum.toFixed(1)} m/s` : '--';
+      const altitude = Number.isFinite(altitudeNum) ? `${altitudeNum.toFixed(0)} m` : '--';
+      const battery = Number.isFinite(batteryNum) ? `${batteryNum.toFixed(0)}%` : '--';
+      const signal = Number.isFinite(signalNum) ? `${signalNum.toFixed(0)}%` : '--';
+      const roleLabel = (d.role || 'unknown').replace(/_/g,' ').toUpperCase();
+      const roleClass = (()=>{
+        const role = (d.role||'').toLowerCase();
+        if(['friendly','defense','offense'].includes(role)) return 'friendly';
+        if(['hostile','attack','enemy'].includes(role)) return 'hostile';
+        return '';
+      })();
+      const statusLabel = (d.status || 'ACTIVE').toString().toUpperCase();
+
+      return `<div class="track-card">
+        <header>
+          <div class="track-id">${d.id}</div>
+          <div class="track-role ${roleClass}">${roleLabel}</div>
+        </header>
+        <div class="track-coords">📍 ${lat}, ${lon}</div>
+        <div class="track-metrics">
+          <div><span>Status</span><strong>${statusLabel}</strong></div>
+          <div><span>Velocity</span><strong>${velocity}</strong></div>
+          <div><span>Altitude</span><strong>${altitude}</strong></div>
+          <div><span>Signal</span><strong>${signal}</strong></div>
+          <div><span>Battery</span><strong>${battery}</strong></div>
+          <div><span>Last Update</span><strong>${d.ts ? fmtLogTime(d.ts) : '--:--:--'}</strong></div>
         </div>
-        <div style="font-size:10px;color:#5a8aa8;margin-bottom:4px">📍 ${d.lat?.toFixed?d.lat.toFixed(5):'-'}, ${d.lon?.toFixed?d.lon.toFixed(5):'-'}</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px">
-          <div>🔋 <span style="color:${batCol};font-weight:700">${d.battery?.toFixed?d.battery.toFixed(1):'-'}%</span></div>
-          <div>📡 <span style="color:${sigCol};font-weight:700">${d.signal?.toFixed?d.signal.toFixed(0):'-'}%</span></div>
-          <div>⚡ <span style="color:#00ffcc;font-weight:700">${d.velocity?.toFixed?d.velocity.toFixed(1):'-'} m/s</span></div>
-          <div>📏 <span style="color:#00ffcc;font-weight:700">${d.altitude?.toFixed?d.altitude.toFixed(0):'-'} m</span></div>
+        <div class="track-actions">
+          <button class="btn secondary" style="padding:6px 12px;font-size:11px" onclick="trackDrone('${d.id}')">Track</button>
         </div>
       </div>`;
-    }).join('');
+    }).join('') || '<div style="color:#64748b;font-size:12px;text-align:center;padding:24px 12px;">No priority tracks available.</div>';
+  }
 
-  document.getElementById('dronesList').innerHTML =
-    droneHtml || '<div style="color:#666;font-size:11px;text-align:center;padding:20px">⚠️ No friendly offensive drones in operation</div>';
+  if(eventLogEl){
+    const logEvents = [];
+
+    detections.forEach(d => {
+      const confValue = Number.isFinite(Number(d.confidence))
+        ? `${Number(d.confidence).toFixed(0)}%`
+        : '—';
+      logEvents.push({
+        ts: d.ts,
+        severity: (d.raw_type||'').toLowerCase().includes('hostile') ? 'critical'
+                  : (d.raw_type||'').toLowerCase().includes('friendly') ? 'success' : 'info',
+        message: `New ${(d.raw_type || 'target').replace(/_/g,' ')} detected. Confidence: ${confValue}`
+      });
+    });
+
+    drones.forEach(d => {
+      if(!d.ts) return;
+      logEvents.push({
+        ts: d.ts,
+        severity: d.role === 'friendly' ? 'success' : 'info',
+        message: `${d.id} changed status to ${ (d.status || 'ACTIVE').toString().toUpperCase() }.`
+      });
+    });
+
+    if(window._ackLogEntry){
+      logEvents.push(window._ackLogEntry);
+    }
+
+    const logHtml = logEvents
+      .filter(e => e.ts)
+      .sort((a,b)=>new Date(b.ts).getTime() - new Date(a.ts).getTime())
+      .slice(0,8)
+      .map(e => {
+        const timeStr = fmtLogTime(e.ts);
+        return `<div class="log-entry ${e.severity}"><div class="log-time">[${timeStr}]</div><div class="log-msg">${e.message}</div></div>`;
+      })
+      .join('');
+
+    eventLogEl.innerHTML = logHtml || '<div style="color:#475569;text-align:center;padding:16px 0">No events logged.</div>';
+  }
 
   // Map
   detLayer.clearLayers();
@@ -644,6 +810,21 @@ function openWs(url){
     try{ handleMsg(JSON.parse(ev.data)); }
     catch{}
   };
+}
+
+const ackBtn = document.getElementById('ackAlertBtn');
+if(ackBtn){
+  ackBtn.addEventListener('click', ()=>{
+    window._ackLogEntry = {
+      ts: new Date().toISOString(),
+      severity: 'info',
+      message: 'Alert acknowledged by operator.'
+    };
+    ackBtn.textContent = 'ALERT ACKNOWLEDGED';
+    ackBtn.disabled = true;
+    ackBtn.style.opacity = '0.75';
+    redraw();
+  });
 }
 
 openWs(wsURL);

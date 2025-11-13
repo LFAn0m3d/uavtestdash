@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WAR ROOM — Integrated Command Center</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root{
+      --bg:#0f1720;
+      --panel:#111417;
+      --muted:#9aa7b9;
+      --text:#e6eef8;
+      --primary:#2b6cb0;
+      --accent:#7f7f7f;
+      --btn-text:#ffffff;
+      --border:#1f2933;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;height:100vh;display:flex;flex-direction:column}
+    
+    .topbar{
+      display:flex;align-items:center;gap:12px;
+      background:var(--panel);
+      color:var(--text);padding:12px 14px;
+      border-bottom:2px solid var(--border);
+      font-weight:700;
+      flex-shrink:0;
+    }
+    .topbar > div:first-child{font-weight:800;letter-spacing:1px}
+    .chip{background:transparent;border:1px solid var(--border);padding:6px 10px;border-radius:6px;font-size:12px;color:var(--muted)}
+    .btn{background:var(--primary);border:none;color:var(--btn-text);padding:10px 14px;border-radius:8px;cursor:pointer;text-decoration:none;font-weight:700;font-size:13px;letter-spacing:0.3px;box-shadow:0 2px 0 rgba(0,0,0,0.35);transition:transform .12s ease, box-shadow .12s ease}
+    .btn:hover{transform:translateY(-2px)}
+    .btn.secondary{background:transparent;color:var(--text);border:1px solid var(--border)}
+    .ws{margin-left:auto;font-size:12px;color:var(--muted);letter-spacing:0.4px;display:flex;align-items:center;gap:8px}
+    .lamp{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:8px;background:#6b7280;transition:background .12s, box-shadow .12s}
+    .lamp.connected{background:#16a34a;box-shadow:0 0 8px rgba(22,163,74,0.6)}
+    .lamp.connecting{background:#f59e0b;box-shadow:0 0 6px rgba(245,158,11,0.4)}
+    .lamp.error{background:#dc2626;box-shadow:0 0 8px rgba(220,38,38,0.6)}
+    
+    .content{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px;overflow:hidden}
+    
+    .panel-container{
+      display:flex;flex-direction:column;
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:8px;
+      overflow:hidden;
+      box-shadow:0 2px 8px rgba(0,0,0,0.2);
+    }
+    
+    .panel-header{
+      padding:10px 12px;
+      background:rgba(0,0,0,0.3);
+      border-bottom:1px solid var(--border);
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:0.6px;
+      font-weight:700;
+      color:var(--text);
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    
+    .map-container{
+      flex:1;
+      position:relative;
+    }
+    
+    .map-container > div{
+      height:100%;
+      width:100%;
+    }
+    
+    .panel-info{
+      padding:10px;
+      font-size:11px;
+      color:var(--muted);
+      background:rgba(0,0,0,0.1);
+      border-top:1px solid var(--border);
+    }
+    
+    .legend{
+      position:absolute;
+      bottom:10px;
+      left:10px;
+      background:var(--panel);
+      padding:8px 12px;
+      border-radius:6px;
+      font-size:11px;
+      color:var(--muted);
+      border:1px solid var(--border);
+      font-weight:700;
+      z-index:1000;
+    }
+    
+    .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+    .dot.red{background:#ff0055}
+    .dot.green{background:#34d399}
+    .dot.blue{background:#2b6cb0}
+    
+    .split-separator{
+      width:8px;
+      background:var(--border);
+      cursor:col-resize;
+      transition:background .2s;
+    }
+    
+    .split-separator:hover{
+      background:var(--primary);
+    }
+    
+    @media (max-width: 1200px) {
+      .content {
+        grid-template-columns: 1fr;
+      }
+      .split-separator {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div>⚔️ 🛡️ WAR ROOM — INTEGRATED COMMAND CENTER</div>
+    <div class="chip">📊 Defense + Offensive Unified View</div>
+    
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+      <a class="btn" href="./index.html">⬅ Dashboard</a>
+      <a class="btn" href="./defense.html" title="Defense Only">🛡️ Defense</a>
+      <a class="btn" href="./offense.html" title="Offense Only">⚔️ Offense</a>
+      <a class="btn" href="./camera.html" title="Camera">📹 Camera</a>
+    </div>
+
+    <div class="ws">
+      <span id="liveTime" style="font-family:monospace;font-weight:700;margin-right:12px">--:--:--</span>
+      <span>Status:</span>
+      <i id="lamp" class="lamp"></i>
+      <span id="wst">OFFLINE</span>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- LEFT: DEFENSE DASHBOARD -->
+    <div class="panel-container">
+      <div class="panel-header">🛡️ DEFENSE — Detection & Threats</div>
+      <div class="map-container">
+        <div id="mapDefense"></div>
+        <div class="legend">
+          <div><span class="dot red"></span>Detection</div>
+          <div><span class="dot red"></span>Attack Drones</div>
+          <div><span class="dot blue"></span>Camera Base</div>
+        </div>
+      </div>
+      <div class="panel-info" id="defenseInfo">Detections: 0 | Last: —</div>
+    </div>
+
+    <!-- RIGHT: OFFENSE DASHBOARD -->
+    <div class="panel-container">
+      <div class="panel-header">⚔️ OFFENSE — Friendly Drone Operations</div>
+      <div class="map-container">
+        <div id="mapOffense"></div>
+        <div class="legend">
+          <div><span class="dot green"></span>Friendly Drones</div>
+          <div><span class="dot blue"></span>Mission Routes</div>
+        </div>
+      </div>
+      <div class="panel-info" id="offenseInfo">Drones: 0 | Routes: 0</div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const START = [14.296422, 101.166061];
+    const $ = id => document.getElementById(id);
+    
+    // Live clock update
+    function updateLiveClock() {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      const ss = String(now.getSeconds()).padStart(2, '0');
+      $('liveTime').textContent = `${hh}:${mm}:${ss}`;
+    }
+    updateLiveClock();
+    setInterval(updateLiveClock, 1000);
+    
+    // ==================== DEFENSE SIDE ====================
+    const mapDefense = L.map('mapDefense').setView(START, 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      maxZoom:19,
+      attribution:'&copy; OSM'
+    }).addTo(mapDefense);
+    
+    let defenseLayers = { detections: L.layerGroup(), drones: L.layerGroup() };
+    Object.values(defenseLayers).forEach(lg => lg.addTo(mapDefense));
+    
+    // Camera marker
+    const cameraIcon = L.divIcon({
+      html: `<div style="width:20px;height:20px;background:#2b6cb0;border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px">📹</div>`,
+      className:'',
+      iconSize:[20,20]
+    });
+    L.marker(START, {icon:cameraIcon}).addTo(mapDefense).bindPopup('📹 Camera Base', {autoClose:false});
+    
+    let defenseDetections = [];
+    let defenseAttackDrones = {};
+    
+    function drawDefense() {
+      defenseLayers.detections.clearLayers();
+      defenseLayers.drones.clearLayers();
+      
+      // Draw detections
+      defenseDetections.forEach(d => {
+        L.circleMarker([d.lat, d.lon], {
+          radius: 6,
+          fillColor: '#ff0055',
+          color: '#ff0055',
+          weight: 2,
+          opacity: 0.7,
+          fillOpacity: 0.5
+        }).bindPopup(`🎯 ${d.drone_id} (${((d.confidence||0)*100).toFixed(0)}%)`)
+         .addTo(defenseLayers.detections);
+      });
+      
+      // Draw attack drones
+      Object.entries(defenseAttackDrones).forEach(([id, d]) => {
+        const icon = L.divIcon({
+          html: `<div style="transform:rotate(${d.heading||0}deg);font-size:16px;text-shadow:0 0 3px #000">🛸</div>`,
+          className:'',
+          iconSize:[16,16]
+        });
+        L.marker([d.lat, d.lon], {icon}).bindPopup(`🛸 ${id}<br>Battery: ${(d.battery||0).toFixed(0)}%`)
+         .addTo(defenseLayers.drones);
+      });
+      
+      // Update info
+      const lastDet = defenseDetections[0];
+      const detTime = lastDet ? new Date(lastDet.ts).toLocaleTimeString() : '—';
+      $('defenseInfo').textContent = `Detections: ${defenseDetections.length} | Last: ${detTime}`;
+    }
+    
+    // ==================== OFFENSE SIDE ====================
+    const mapOffense = L.map('mapOffense').setView(START, 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      maxZoom:19,
+      attribution:'&copy; OSM'
+    }).addTo(mapOffense);
+    
+    let offenseLayers = { routes: L.layerGroup(), arrows: L.layerGroup(), drones: L.layerGroup() };
+    Object.values(offenseLayers).forEach(lg => lg.addTo(mapOffense));
+    
+    let offenseRoutes = [];
+    let offenseDrones = {};
+    
+    function drawOffense() {
+      offenseLayers.routes.clearLayers();
+      offenseLayers.arrows.clearLayers();
+      offenseLayers.drones.clearLayers();
+      
+      // Group by drone
+      const by = new Map();
+      offenseRoutes.forEach(p => {
+        if(!by.has(p.drone_id)) by.set(p.drone_id, []);
+        by.get(p.drone_id).push(p);
+      });
+      
+      // Draw routes
+      by.forEach((pts, id) => {
+        const coords = pts.map(p => [p.lat, p.lon]);
+        const role = pts[0].role || 'friendly';
+        const color = role === 'friendly' ? '#34d399' : '#ff6b9d';
+        
+        L.polyline(coords, {color, weight:2, opacity:0.6})
+         .addTo(offenseLayers.routes);
+        
+        // Arrows along route
+        for(let i=0; i<coords.length-1; i+=Math.ceil(coords.length/5)) {
+          const [lat1,lon1] = coords[i];
+          const [lat2,lon2] = coords[i+1] || coords[i];
+          const bearing = Math.atan2(lon2-lon1, lat2-lat1) * 180 / Math.PI;
+          
+          const arrowIcon = L.divIcon({
+            html: `<div style="transform:rotate(${bearing}deg);font-size:12px;color:${color}">→</div>`,
+            className:'',
+            iconSize:[12,12]
+          });
+          L.marker([lat1, lon1], {icon:arrowIcon}).addTo(offenseLayers.arrows);
+        }
+        
+        // Drone marker at last position
+        if(pts.length > 0) {
+          const last = pts[pts.length-1];
+          const droneIcon = L.divIcon({
+            html: `<div style="transform:rotate(${last.heading||0}deg);font-size:16px;text-shadow:0 0 3px #000">🚁</div>`,
+            className:'',
+            iconSize:[16,16]
+          });
+          L.marker([last.lat, last.lon], {icon:droneIcon})
+           .bindPopup(`🚁 ${id}<br>Battery: ${(last.battery||0).toFixed(0)}%<br>Alt: ${(last.altitude||0).toFixed(0)}m`)
+           .addTo(offenseLayers.drones);
+        }
+      });
+      
+      // Update info
+      $('offenseInfo').textContent = `Drones: ${by.size} | Routes: ${offenseRoutes.length} points`;
+    }
+    
+    // ==================== WEBSOCKET ====================
+    function setWsUI(status) {
+      const lamp = $('lamp');
+      lamp.classList.remove('connected','connecting','error');
+      if(status === 'CONNECTED') {
+        lamp.classList.add('connected');
+        $('wst').textContent = 'CONNECTED';
+      } else if(status === 'CONNECTING') {
+        lamp.classList.add('connecting');
+        $('wst').textContent = 'CONNECTING...';
+      } else if(status === 'ERROR') {
+        lamp.classList.add('error');
+        $('wst').textContent = 'ERROR';
+      } else {
+        $('wst').textContent = 'DISCONNECTED';
+      }
+    }
+    
+    const wsURL = localStorage.getItem('warroom:ws') || 'ws://localhost:8765/stream';
+    let wsRetry = 0;
+    
+    function openWs() {
+      setWsUI('CONNECTING');
+      const ws = new WebSocket(wsURL);
+      
+      ws.onopen = () => {
+        wsRetry = 0;
+        setWsUI('CONNECTED');
+        console.log('WebSocket connected');
+      };
+      
+      ws.onerror = () => setWsUI('ERROR');
+      
+      ws.onclose = () => {
+        setWsUI('DISCONNECTED');
+        const wait = Math.min(15000, 1000 * (2 ** wsRetry++));
+        console.log(`Reconnecting in ${wait/1000}s`);
+        setTimeout(openWs, wait);
+      };
+      
+      ws.onmessage = ev => {
+        try {
+          const msg = JSON.parse(ev.data);
+          
+          // Detection (DEFENSE)
+          if(msg.type === 'detection' && msg.data) {
+            const d = msg.data;
+            defenseDetections.unshift({
+              lat: +d.lat,
+              lon: +d.lon,
+              confidence: +(d.confidence || 0),
+              drone_id: d.drone_id || 'Unknown',
+              ts: d.ts || new Date().toISOString()
+            });
+            if(defenseDetections.length > 20) defenseDetections.pop();
+            drawDefense();
+          }
+          
+          // Route point
+          if(msg.type === 'route_point' && msg.data) {
+            const d = msg.data;
+            const role = d.role || 'friendly';
+            
+            if(role === 'attack') {
+              // Attack drone (for defense side)
+              defenseAttackDrones[d.drone_id] = {
+                lat: +d.lat,
+                lon: +d.lon,
+                battery: +(d.battery || 50),
+                signal: +(d.signal || 50),
+                heading: +(d.heading || 0),
+                ts: d.ts
+              };
+              drawDefense();
+            } else {
+              // Friendly drone (for offense side)
+              offenseRoutes.push({
+                drone_id: d.drone_id,
+                lat: +d.lat,
+                lon: +d.lon,
+                battery: +(d.battery || 100),
+                heading: +(d.heading || 0),
+                altitude: +(d.altitude || 0),
+                velocity: +(d.velocity || 0),
+                role: role,
+                ts: d.ts
+              });
+              if(offenseRoutes.length > 500) offenseRoutes.shift();
+              drawOffense();
+            }
+          }
+          
+          // Clear
+          if(msg.type === 'clear') {
+            if(msg.scope === 'routes' || msg.scope === 'all') {
+              offenseRoutes = [];
+              defenseDetections = [];
+              drawOffense();
+              drawDefense();
+            }
+          }
+        } catch(e) {
+          console.warn('Message parse error:', e);
+        }
+      };
+    }
+    
+    // Load cached data
+    try {
+      const cached = JSON.parse(localStorage.getItem('warroom:routes') || '[]');
+      cached.forEach(r => {
+        if(r.role === 'attack') {
+          defenseAttackDrones[r.drone_id] = r;
+        } else {
+          offenseRoutes.push(r);
+        }
+      });
+    } catch(e) {
+      console.warn('Cache load error:', e);
+    }
+    
+    // Start WebSocket and initial draw
+    openWs();
+    drawDefense();
+    drawOffense();
+  </script>
+</body>
+</html>

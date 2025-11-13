@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>WAR ROOM — Offense Map (Realtime)</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    :root{
+      --bg:#0f1720;        /* page background */
+      --panel:#111417;     /* panel background */
+      --muted:#9aa7b9;     /* secondary text */
+      --text:#e6eef8;      /* main text */
+      --primary:#2b6cb0;   /* flat primary (muted blue) */
+      --accent:#7f7f7f;    /* neutral accent */
+      --btn-text:#ffffff;  /* button text */
+      --border:#1f2933;    /* subtle border */
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:15px/1.6 'Segoe UI','Helvetica Neue',Arial,sans-serif}
+    body{display:flex;flex-direction:column}
+    .topbar{padding:12px 14px;color:var(--text);background:var(--panel);display:flex;align-items:center;gap:12px;border-bottom:2px solid var(--border);flex-shrink:0}
+    .topbar > div:first-child{font-weight:800;letter-spacing:1px;color:var(--text)}
+    .chip{background:transparent;border:1px solid var(--border);padding:6px 10px;border-radius:8px;font-size:13px;color:var(--muted)}
+    /* Large, flat button used across UI */
+    .btn{background:var(--primary);color:var(--btn-text);padding:10px 14px;border-radius:8px;border:none;cursor:pointer;font-weight:700;font-size:13px;letter-spacing:0.3px;box-shadow:0 2px 0 rgba(0,0,0,.35);transition:transform .12s}
+    .btn.secondary{background:transparent;color:var(--muted);border:1px solid var(--border)}
+    .legend{position:absolute;left:18px;bottom:18px;z-index:4000;padding:8px 12px;background:var(--panel);border-radius:8px;color:var(--text);font-size:13px;border:1px solid var(--border);font-weight:700}
+    .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;background:var(--primary)}
+    .ws{margin-left:auto;font-size:12px;color:var(--muted);letter-spacing:0.4px}
+    .lamp{display:inline-block;width:12px;height:12px;border-radius:50%;background:#444;margin-right:6px}
+    .lamp.connected{background:#16a34a;box-shadow:0 0 8px rgba(22,163,74,0.6)}
+    .lamp.connecting{background:#f59e0b;box-shadow:0 0 6px rgba(245,158,11,0.4)}
+    .lamp.error{background:#dc2626;box-shadow:0 0 8px rgba(220,38,38,0.6)}
+    .drone-label{ background:var(--panel) !important; border:1px solid var(--border) !important; border-radius:6px; color:var(--text) !important; font-weight:700 !important; padding:6px 8px !important }
+    .drone-arrow-icon{ pointer-events:none }
+    @keyframes droneFloat { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-3px); } }
+    .drone-float { animation: droneFloat 2s ease-in-out infinite; }
+  </style>
+</head>
+<body>
+<div class="topbar">
+  <div>⚔️ WAR ROOM — OFFENSE OPS</div>
+  <div class="chip">🎯 Offensive Drone Formations</div>
+  <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+    <button class="btn" onclick="centerAll()">⊕ Center</button>
+    <a class="btn" href="./index.html">⬅ Dashboard</a>
+    <a class="btn" href="./defense-camera.html" title="Defense Camera">Defense</a>
+    <a class="btn" href="./camera.html" title="Camera Detections">Camera</a>
+  </div>
+  <div class="ws">
+    <span id="liveTime" style="font-family:monospace;font-weight:700;margin-right:12px">--:--:--</span>
+    <i id="lamp" class="lamp"></i><span id="wst">OFFLINE</span>
+  </div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 250px;gap:12px;padding:12px;height:calc(100vh - 80px)">
+  <div id="map" style="border-radius:8px;border:1px solid var(--border)"></div>
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px;overflow-y:auto;max-height:100%">
+    <h3 style="margin:0 0 8px;color:var(--text);font-size:13px;text-transform:uppercase">🚁 Offensive Units</h3>
+    <div id="offenseDronesList" style="line-height:1.4">—</div>
+  </div>
+</div>
+  <div class="legend">● Offensive Units (Active)</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const START = [14.296422, 101.166061];
+
+  // Live clock update
+  function updateLiveClock() {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    $('liveTime').textContent = `${hh}:${mm}:${ss}`;
+  }
+  updateLiveClock();
+  setInterval(updateLiveClock, 1000);
+
+  // role map
+  function getRole(id){
+    try{ const r=JSON.parse(localStorage.getItem('warroom:roles')||'{}'); if(r[id]) return r[id]; }catch{}
+    const m=String(id||'').match(/(\d+)$/); return m && (parseInt(m[1],10)%2===1) ? 'offense':'defense';
+  }
+
+  // state
+  const map = L.map('map').setView(START,12);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    maxZoom:19,
+    attribution:'&copy; OpenStreetMap'
+  }).addTo(map);
+
+
+  // Camera marker at center
+  const cameraIcon = L.divIcon({
+    html: `<div style="width:32px;height:32px;background:linear-gradient(135deg,rgba(0,255,200,.3),rgba(0,200,255,.3));border:2px solid #00ffc8;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 16px rgba(0,255,200,.6),inset 0 0 8px rgba(0,255,200,.3);font-size:18px">📹</div>`,
+    className: 'camera-icon',
+    iconSize: [32, 32],
+    iconAnchor: [16, 16]
+  });
+  L.marker(START, {icon: cameraIcon}).bindTooltip('🎥 CAMERA_01 (Fixed)', {permanent: true, direction: 'top', offset: [0, -10], className: 'drone-label'}).addTo(map).openTooltip();
+
+  function pushRoute(x){
+    if(!x||!x.drone_id||x.role!=='friendly') return; // Only track friendly drones
+    const lat=Number(x.lat), lon=Number(x.lon);
+    if(!Number.isFinite(lat)||!Number.isFinite(lon)) return;
+    routes.push({
+      drone_id:String(x.drone_id), 
+      seq:x.seq!==undefined?parseInt(x.seq,10):undefined, 
+      lat, lon, 
+      ts:x.ts||undefined,
+      battery:x.battery||0,
+      signal:x.signal||0,
+      velocity:x.velocity||0,
+      altitude:x.altitude||0,
+      status:x.status||'active'
+    });
+    localStorage.setItem('warroom:routes', JSON.stringify(routes));
+  }
+
+  function trackDrone(droneId){
+    // ค้นหาโดรนล่าสุดจาก routes
+    const droneRoutes = routes.filter(r => r.drone_id === droneId);
+    if(droneRoutes.length === 0) return;
+    
+    const lastRoute = droneRoutes[droneRoutes.length - 1];
+    const lat = lastRoute.lat;
+    const lon = lastRoute.lon;
+    
+    // zoom ไปที่โดรนนั้น
+    map.setView([lat, lon], 14, { animate: true, duration: 1 });
+  }
+
+  function redraw(){
+    lineLayer.clearLayers(); pointLayer.clearLayers(); arrowLayer.clearLayers();
+    const by = new Map();
+    routes.forEach(r=>{ if(!by.has(r.drone_id)) by.set(r.drone_id,[]); by.get(r.drone_id).push(r); });
+    const all=[];
+    
+    for(const [id, arr0] of by.entries()){
+      const arr = arr0.slice().sort((a,b)=>(a.seq||0)-(b.seq||0));
+      const coords = arr.map(p=>[p.lat,p.lon]); 
+      coords.forEach(c=> all.push(c));
+      
+      // draw smooth path line in green for friendly
+      if(coords.length>=2) L.polyline(coords,{color:'#34d399',weight:3,opacity:.95}).addTo(lineLayer);
+      
+      // only show drone icon at the last point with status indicators
+      if(arr.length >= 1){
+        const last = arr[arr.length - 1];
+        let angle = 0;
+        
+        // calculate heading from previous point to last point
+        if(arr.length >= 2){
+          const prev = arr[arr.length - 2];
+          angle = (Math.atan2(last.lon - prev.lon, last.lat - prev.lat) * 180 / Math.PI) || 0;
+        }
+        
+        // Determine status color based on battery
+        let statusColor = '#34d399'; // green
+        if((last.battery || 100) < 40) statusColor = '#ff0055'; // red if low battery
+        else if((last.battery || 100) < 60) statusColor = '#ffaa00'; // orange if medium
+        
+        // Status badge based on drone phase
+        const statusText = last.status || 'active';
+        const statusEmoji = {
+          'outbound': '🚀',
+          'loitering': '🎯',
+          'returning': '🏠',
+          'active': '✈'
+        }[statusText] || '✈';
+        
+        // tactical drone SVG icon
+        const droneSvg = `<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="droneGlow_${id}" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+          <!-- main body -->
+          <rect x="17" y="12" width="6" height="16" fill="${statusColor}" rx="2" filter="url(#droneGlow_${id})"/>
+          <!-- left arm -->
+          <rect x="2" y="17" width="15" height="3" fill="${statusColor}" rx="1.5" filter="url(#droneGlow_${id})"/>
+          <!-- right arm -->
+          <rect x="23" y="17" width="15" height="3" fill="${statusColor}" rx="1.5" filter="url(#droneGlow_${id})"/>
+          <!-- front sensor -->
+          <circle cx="20" cy="12" r="2" fill="${statusColor}" filter="url(#droneGlow_${id})"/>
+          <!-- propeller indicators (4 rotors) -->
+          <circle cx="6" cy="17" r="3" fill="none" stroke="${statusColor}" stroke-width="1.5" opacity="0.7" filter="url(#droneGlow_${id})"/>
+          <circle cx="34" cy="17" r="3" fill="none" stroke="${statusColor}" stroke-width="1.5" opacity="0.7" filter="url(#droneGlow_${id})"/>
+          <!-- glow effect -->
+          <circle cx="20" cy="20" r="18" fill="none" stroke="${statusColor}" stroke-width="0.5" opacity="0.3"/>
+        </svg>`;
+        
+        const droneIcon = L.divIcon({
+          html: `<div class="drone-float" style="transform: rotate(${angle}deg); display:flex; align-items:center; justify-content:center; filter:drop-shadow(0 0 12px ${statusColor}) drop-shadow(0 0 6px ${statusColor})">${droneSvg}</div>`,
+          className: 'drone-icon',
+          iconSize: [40, 40],
+          iconAnchor: [20, 20]
+        });
+        
+        const m = L.marker([last.lat,last.lon],{icon:droneIcon}).addTo(arrowLayer);
+        const trackName = last.track_name || last.route_name || id;
+        const batteryColor = (last.battery || 100) < 40 ? '#ff0055' : (last.battery || 100) < 60 ? '#ffaa00' : '#34d399';
+        m.bindTooltip(`
+          <div style="font-family:monospace;font-size:11px;text-align:left">
+            <b>${trackName}</b> ${statusEmoji}<br>
+            Status: <span style="color:${batteryColor}">${statusText.toUpperCase()}</span><br>
+            <span style="color:#a8d8ff">🔋 ${(last.battery||0).toFixed(0)}%</span> 
+            <span style="color:#a8d8ff">📡 ${(last.signal||0).toFixed(0)}%</span><br>
+            <span style="color:#a8d8ff">⚡ ${(last.velocity||0).toFixed(1)} m/s</span> 
+            <span style="color:#a8d8ff">📏 ${(last.altitude||0).toFixed(0)}m</span>
+          </div>
+        `, {permanent:true, direction:'top', offset:[0,-20], className:'drone-label'}).openTooltip();
+      }
+    }
+    // map maintains fixed zoom view (no auto-fit)
+
+    // Update drone list panel
+    const droneListHtml = Array.from(by.entries()).map(([id, arr]) => {
+      const last = arr[arr.length - 1];
+      const batCol = (last.battery || 100) > 70 ? '#34d399' : (last.battery || 100) > 40 ? '#ffaa00' : '#ff0055';
+      return `<div style="padding:8px;background:rgba(52,211,153,0.08);border-left:3px solid #34d399;border-radius:4px;margin-bottom:6px;font-size:11px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <b style="color:#34d399">${id}</b>
+          <button class="btn" style="padding:1px 4px;font-size:8px;background:#34d399;color:#000;" onclick="trackDrone('${id}')">Track</button>
+        </div>
+        <div style="color:var(--muted);margin-bottom:3px">📍 ${(last.lat||0).toFixed(4)}, ${(last.lon||0).toFixed(4)}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px;font-size:10px">
+          <div>🔋 <span style="color:${batCol}">${(last.battery||0).toFixed(0)}%</span></div>
+          <div>📡 ${(last.signal||0).toFixed(0)}%</div>
+        </div>
+      </div>`;
+    }).join('');
+    
+    const droneListEl = document.getElementById('offenseDronesList');
+    if(droneListEl) droneListEl.innerHTML = droneListHtml || '<div style="color:#666;font-size:10px;text-align:center;padding:10px">No drones</div>';
+  }
+  function centerAll(){ const pts=[]; routes.forEach(p=>pts.push([p.lat,p.lon])); if(pts.length) map.fitBounds(L.latLngBounds(pts).pad(0.2)); }
+
+  // boot from cache
+  try{ routes = JSON.parse(localStorage.getItem('warroom:routes')||'[]'); }catch{ routes=[]; }
+  redraw();
+
+  // WS realtime
+  const wsURL = localStorage.getItem('warroom:ws') || 'ws://localhost:8765/stream';
+  let ws=null,hb=null;
+  function setWsUI(s){
+    const lamp=$('lamp'), t=$('wst');
+    lamp.classList.remove('connected','connecting','error','on','err');
+    if(s==='OPEN'){ lamp.classList.add('connected'); t.textContent='CONNECTED'; }
+    else if(s==='ERROR'){ lamp.classList.add('error'); t.textContent='ERROR'; }
+    else if(s==='CONNECTING'){ lamp.classList.add('connecting'); t.textContent='CONNECTING...'; }
+    else { t.textContent='DISCONNECTED'; }
+  }
+  function openWs(url){
+    setWsUI('CONNECTING'); ws=new WebSocket(url);
+    ws.onopen=()=>{ setWsUI('OPEN'); if(hb) clearInterval(hb); hb=setInterval(()=>{ try{ws.send('{"type":"ping"}')}catch{} },8000); };
+    ws.onerror=()=> setWsUI('ERROR');
+    ws.onclose=()=> setWsUI('DISCONNECTED');
+    ws.onmessage=(ev)=>{ try{
+      const m=JSON.parse(ev.data); const t=m?.type, d=m?.data;
+      if(t==='route_point'&&d){ pushRoute(d); redraw(); }
+      else if(t==='route_batch'&&Array.isArray(d)){ d.forEach(pushRoute); redraw(); }
+      else if(t==='detection'&&d){ /* detection data also stored for reference */ }
+      else if(t==='detections'&&Array.isArray(d)){ /* batch detections */ }
+      else if(t==='clear'){ const s=m.scope||'all'; if(s==='routes'||s==='all') routes=[]; redraw(); }
+    }catch{} };
+  }
+  openWs(wsURL);
+</script>
+</body>
+</html>

@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WAR ROOM — Controls</title>
+  <style>
+    /* Neutral, flat palette and larger, clearer controls */
+    :root{
+      --bg:#0f1720;        /* page background */
+      --panel:#111417;     /* panel background */
+      --muted:#9aa7b9;     /* secondary text */
+      --text:#e6eef8;      /* main text */
+      --primary:#2b6cb0;   /* flat primary (muted blue) */
+      --accent:#7f7f7f;    /* neutral accent */
+      --btn-text:#ffffff;  /* button text */
+      --border:#1f2933;    /* subtle border */
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 'Segoe UI', 'Helvetica Neue', Arial, sans-serif}
+    .wrap{max-width:980px;margin:0 auto;padding:18px}
+    h2{color:var(--text);font-weight:700;letter-spacing:0.6px;margin:0 0 8px 0}
+    .small{color:var(--muted);font-size:13px}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;box-shadow:0 1px 0 rgba(0,0,0,0.4) inset}
+    .panel h3{color:var(--text);margin:0 0 8px 0;font-size:15px}
+    .row{display:flex;gap:10px;align-items:center}
+    /* Large, flat button used across UI */
+    .btn{background:var(--primary);border:none;color:var(--btn-text);padding:12px 18px;border-radius:8px;cursor:pointer;text-decoration:none;font-weight:700;text-transform:none;font-size:14px;letter-spacing:0.3px;box-shadow:0 2px 0 rgba(0,0,0,0.35);transition:transform .12s ease, box-shadow .12s ease}
+    .btn:active{transform:translateY(1px);box-shadow:0 1px 0 rgba(0,0,0,0.35)}
+    .btn.secondary{background:transparent;color:var(--text);border:1px solid var(--border)}
+    .btn.ghost{background:transparent;color:var(--muted);border:1px dashed var(--border)}
+    input[type=text],input[type=url],input[type=number],textarea,select{width:100%;background:#0b0f12;border:1px solid var(--border);color:var(--text);padding:10px;border-radius:8px;font-family:inherit}
+    label{font-weight:700;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px}
+    table{width:100%;border-collapse:collapse;margin-top:8px}
+    th,td{padding:10px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left;color:var(--text)}
+    th{background:transparent;color:var(--muted);font-weight:700;letter-spacing:0.6px}
+    code{background:#0b0f12;border:1px solid var(--border);padding:4px 8px;border-radius:6px;color:var(--muted);font-family:monospace}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h2 style="margin:0 0 8px 0">WAR ROOM — COMMAND CENTER</h2>
+    <div class="small">⚡ System Configuration • <a href="./" style="color:#00ff88;text-decoration:none;text-shadow:0 0 6px #00ff88">⬅ Return to Dashboard</a></div>
+
+    <!-- Mission -->
+    <div class="panel">
+      <h3 style="margin:0 0 8px 0">Mission</h3>
+      <label>Mission Name</label>
+      <input id="missionName" type="text" placeholder="Operation Sentinel" />
+    </div>
+
+    <!-- Realtime -->
+    <div class="panel">
+      <h3 style="margin:0 0 8px 0">Realtime Ingest</h3>
+      <label>WebSocket URL</label>
+      <input id="wsUrl" type="url" value="ws://localhost:8765/stream" />
+      <div class="row" style="margin-top:6px">
+        <button class="btn" id="wsTest">Test Connect</button>
+        <span class="small" id="wsInfo">—</span>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="panel">
+      <h3 style="margin:0 0 8px 0">Filters</h3>
+      <label>Max detection points</label>
+      <input id="maxPoints" type="number" value="500" min="50" max="5000" step="50" />
+      <div style="height:6px"></div>
+      <label>Minimum confidence</label>
+      <input id="minConf" type="number" value="0" min="0" max="1" step="0.05" />
+      <div class="row" style="margin-top:6px">
+        <input id="showHeat" type="checkbox" /> <label for="showHeat" style="margin:0" class="small">Show Heatmap</label>
+      </div>
+    </div>
+
+    <!-- Roles Manager -->
+    <div class="panel">
+      <h3 style="margin:0 0 8px 0">Drone Roles (Offense / Defense)</h3>
+      <div class="small" style="margin-bottom:8px">
+        ระบบจะแยกสีบนแผนที่ตามบทบาทของโดรน: <b>Offense</b> = เขียว, <b>Defense</b> = ฟ้า.<br/>
+        ข้อมูลรายชื่อโดรนจะอ่านจากเส้นทางที่ Dashboard เก็บไว้ใน <code>localStorage["warroom:routes"]</code>
+      </div>
+
+      <div class="row" style="gap:6px;margin-bottom:8px">
+        <button class="btn" id="syncFromDash">Sync รายชื่อจาก Dashboard</button>
+        <input id="manualDroneId" type="text" placeholder="เพิ่ม drone id (เช่น drone_03)" style="max-width:260px">
+        <button class="btn" id="addDrone">Add</button>
+        <button class="btn" id="clearRoles" title="ล้าง mapping ทั้งหมด">Clear Roles</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width:40%">Drone ID</th>
+            <th style="width:30%">Role</th>
+            <th style="width:30%">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="rolesTable">
+          <!-- filled by JS -->
+        </tbody>
+      </table>
+
+      <div class="row" style="margin-top:8px">
+        <button class="btn" id="exportRoles">Export JSON</button>
+        <button class="btn" id="importRoles">Import JSON</button>
+      </div>
+      <textarea id="rolesJson" rows="5" placeholder='{"drone_01":"offense","drone_02":"defense"}' style="margin-top:8px;display:none"></textarea>
+    </div>
+
+    <div class="small">ค่าทุกอย่างถูกบันทึกอัตโนมัติลง <code>localStorage</code>.</div>
+
+    <!-- Clear Server / Client Data -->
+    <div class="panel">
+      <h3 style="margin:0 0 8px 0">Clear Data</h3>
+      <div class="small" style="margin-bottom:8px">ส่งคำสั่งผ่าน WebSocket ไปยัง Dashboard ทุกแท็บให้ล้างข้อมูล หรือจะล้างเฉพาะข้อมูลในเครื่องนี้ (localStorage) ก็ได้</div>
+      <div class="row" style="gap:8px;flex-wrap:wrap">
+        <button class="btn" id="clrAll">WS: Clear ALL</button>
+        <button class="btn" id="clrDet">WS: Clear Detections</button>
+        <button class="btn" id="clrRoutes">WS: Clear Routes</button>
+        <button class="btn" id="clrLocal" title="ล้างเฉพาะข้อมูลฝั่งเบราว์เซอร์นี้">Local: Clear cache</button>
+      </div>
+      <div class="small" id="clrInfo" style="margin-top:6px">—</div>
+    </div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const STORAGE = { mission:'warroom:mission', ws:'warroom:ws', roles:'warroom:roles' };
+
+    // ==== Load persisted values ====
+    $('missionName').value = localStorage.getItem(STORAGE.mission) || 'Operation Sentinel';
+    $('wsUrl').value       = localStorage.getItem(STORAGE.ws) || $('wsUrl').value;
+    $('maxPoints').value   = localStorage.getItem('warroom:maxPoints') || 500;
+    $('minConf').value     = localStorage.getItem('warroom:minConf')   || 0;
+    $('showHeat').checked  = localStorage.getItem('warroom:showHeat') === '1';
+
+    function saveBasics(){
+      localStorage.setItem(STORAGE.mission, $('missionName').value);
+      localStorage.setItem(STORAGE.ws, $('wsUrl').value);
+      localStorage.setItem('warroom:maxPoints', $('maxPoints').value);
+      localStorage.setItem('warroom:minConf', $('minConf').value);
+      localStorage.setItem('warroom:showHeat', $('showHeat').checked ? '1':'0');
+    }
+    ['missionName','wsUrl','maxPoints','minConf','showHeat'].forEach(id=>{
+      const el=$(id); el.addEventListener(el.type==='checkbox'?'change':'input', saveBasics);
+    });
+
+    // ==== Roles state ====
+    let rolesMap = {};
+    try{ rolesMap = JSON.parse(localStorage.getItem(STORAGE.roles) || '{}') || {}; }catch{ rolesMap = {}; }
+
+    function saveRoles(){ localStorage.setItem(STORAGE.roles, JSON.stringify(rolesMap)); }
+
+    function getDroneIds(){
+      // pull unique drone_id from routes in localStorage (set by Dashboard)
+      let routes = [];
+      try{ routes = JSON.parse(localStorage.getItem('warroom:routes')||'[]'); }catch{ routes=[] }
+      const ids = Array.from(new Set(routes.map(r=>r.drone_id).filter(Boolean)));
+      return ids;
+    }
+
+    function ensureRole(id){
+      if(rolesMap[id]==='offense' || rolesMap[id]==='defense') return rolesMap[id];
+      // fallback heuristic: odd -> offense, even -> defense
+      const m=String(id).match(/(\d+)$/);
+      rolesMap[id] = m && (parseInt(m[1],10)%2===1) ? 'offense' : 'defense';
+      return rolesMap[id];
+    }
+
+    function renderRolesTable(){
+      const ids = new Set(getDroneIds());
+      // also include any manually added ids stored in rolesMap
+      Object.keys(rolesMap).forEach(k=>ids.add(k));
+      const sorted = Array.from(ids).sort();
+      const rows = sorted.map(id=>{
+        const role = ensureRole(id);
+        return `<tr>
+          <td><code>${id}</code></td>
+          <td>
+            <select data-id="${id}" class="roleSel">
+              <option value="offense" ${role==='offense'?'selected':''}>offense</option>
+              <option value="defense" ${role==='defense'?'selected':''}>defense</option>
+            </select>
+          </td>
+          <td>
+            <button class="btn" data-act="rm" data-id="${id}">Remove</button>
+          </td>
+        </tr>`;
+      }).join('');
+      $('rolesTable').innerHTML = rows || `<tr><td colspan="3" class="small">ยังไม่มีรายชื่อโดรน — กด <b>Sync รายชื่อจาก Dashboard</b> หรือเพิ่มด้วยมือ</td></tr>`;
+
+      // wire events for selects & remove
+      document.querySelectorAll('.roleSel').forEach(sel=>{
+        sel.addEventListener('change', e=>{
+          const id = e.target.getAttribute('data-id');
+          rolesMap[id] = e.target.value;
+          saveRoles();
+        });
+      });
+      document.querySelectorAll('button[data-act="rm"]').forEach(btn=>{
+        btn.addEventListener('click', e=>{
+          const id = e.target.getAttribute('data-id');
+          delete rolesMap[id];
+          saveRoles();
+          renderRolesTable();
+        });
+      });
+    }
+
+    // ==== Buttons ====
+    $('syncFromDash').addEventListener('click', renderRolesTable);
+    $('addDrone').addEventListener('click', ()=>{
+      const id = $('manualDroneId').value.trim();
+      if(!id) return;
+      if(!rolesMap[id]) rolesMap[id] = 'defense';
+      saveRoles();
+      $('manualDroneId').value='';
+      renderRolesTable();
+    });
+    $('clearRoles').addEventListener('click', ()=>{
+      if(!confirm('ล้าง mapping ทั้งหมดหรือไม่?')) return;
+      rolesMap = {};
+      saveRoles();
+      renderRolesTable();
+    });
+
+    $('exportRoles').addEventListener('click', ()=>{
+      const json = JSON.stringify(rolesMap, null, 2);
+      const blob = new Blob([json], {type:'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'roles.json';
+      a.click();
+    });
+
+    $('importRoles').addEventListener('click', ()=>{
+      const area = $('rolesJson');
+      area.style.display = area.style.display==='none' ? 'block':'none';
+      if(area.style.display==='block' && !area.value){
+        area.value = '{"drone_01":"offense","drone_02":"defense"}';
+      }
+    });
+
+    $('rolesJson').addEventListener('change', ()=>{
+      try{
+        const obj = JSON.parse($('rolesJson').value);
+        if(obj && typeof obj === 'object'){
+          rolesMap = obj; saveRoles(); renderRolesTable(); alert('นำเข้า roles สำเร็จ');
+        } else { alert('รูปแบบ JSON ไม่ถูกต้อง'); }
+      }catch(e){ alert('ไม่สามารถ parse JSON ได้'); }
+    });
+
+    // ==== WS quick test ====
+    let ws=null;
+    $('wsTest').addEventListener('click', ()=>{
+      saveBasics();
+      try{ if(ws) ws.close(); }catch{}
+      ws = new WebSocket($('wsUrl').value.trim());
+      ws.onopen = ()=> $('wsInfo').textContent = 'CONNECTED (test ok)';
+      ws.onerror= ()=> $('wsInfo').textContent = 'ERROR';
+      ws.onclose= ()=> $('wsInfo').textContent = 'CLOSED';
+      setTimeout(()=>{ try{ ws.close(); }catch{} }, 1200);
+    });
+
+    // ==== WS control helpers (broadcast clear) ====
+    function wsSendControl(payload){
+      const url = $('wsUrl').value.trim();
+      if(!/^wss?:\/\//.test(url)){ $('clrInfo').textContent = 'WS URL ไม่ถูกต้อง'; return; }
+      let s; try{ s = new WebSocket(url); }catch(e){ $('clrInfo').textContent = 'เปิด WS ไม่ได้'; return; }
+      s.onopen = ()=>{ try{ s.send(JSON.stringify(payload)); $('clrInfo').textContent = 'ส่งคำสั่งแล้ว: '+payload.type+' ('+(payload.scope||'all')+')'; }catch(e){ $('clrInfo').textContent = 'ส่งไม่สำเร็จ'; } setTimeout(()=>{ try{s.close();}catch{} }, 400); };
+      s.onerror= ()=> $('clrInfo').textContent = 'WS error';
+    }
+
+    $('clrAll').addEventListener('click', ()=> wsSendControl({type:'clear', scope:'all'}));
+    $('clrDet').addEventListener('click', ()=> wsSendControl({type:'clear', scope:'detections'}));
+    $('clrRoutes').addEventListener('click', ()=> wsSendControl({type:'clear', scope:'routes'}));
+
+    $('clrLocal').addEventListener('click', ()=>{
+      // ล้างเฉพาะข้อมูลที่เกี่ยวกับ dashboard ในเครื่องนี้
+      localStorage.removeItem('warroom:detections');
+      localStorage.removeItem('warroom:routes');
+      document.getElementById('clrInfo').textContent = 'ล้าง cache ฝั่ง client แล้ว';
+    });
+
+    // ==== boot ====
+    renderRolesTable();
+  </script>
+</body>
+</html>

@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WAR ROOM — Defense Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root{
+      --bg:#0f1720;
+      --panel:#111417;
+      --muted:#9aa7b9;
+      --text:#e6eef8;
+      --primary:#2b6cb0;
+      --accent:#7f7f7f;
+      --btn-text:#ffffff;
+      --border:#1f2933;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;height:100vh;display:flex;flex-direction:column}
+    
+    .topbar{
+      display:flex;align-items:center;gap:12px;
+      background:var(--panel);
+      color:var(--text);padding:12px 14px;
+      border-bottom:2px solid var(--border);
+      font-weight:700;
+      flex-shrink:0;
+    }
+    .topbar > div:first-child{font-weight:800;letter-spacing:1px}
+    .chip{background:transparent;border:1px solid var(--border);padding:6px 10px;border-radius:6px;font-size:12px;color:var(--muted)}
+    .btn{background:var(--primary);border:none;color:var(--btn-text);padding:10px 14px;border-radius:8px;cursor:pointer;text-decoration:none;font-weight:700;font-size:13px;letter-spacing:0.3px;box-shadow:0 2px 0 rgba(0,0,0,0.35);transition:transform .12s ease, box-shadow .12s ease}
+    .btn:hover{transform:translateY(-2px)}
+    .btn.secondary{background:transparent;color:var(--text);border:1px solid var(--border)}
+    .ws{margin-left:auto;font-size:12px;color:var(--muted);letter-spacing:0.4px;display:flex;align-items:center}
+    .lamp{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:8px;background:#6b7280;transition:background .12s, box-shadow .12s}
+    .lamp.connected{background:#16a34a;box-shadow:0 0 8px rgba(22,163,74,0.6)}
+    .lamp.connecting{background:#f59e0b;box-shadow:0 0 6px rgba(245,158,11,0.4)}
+    .lamp.error{background:#dc2626;box-shadow:0 0 8px rgba(220,38,38,0.6)}
+    
+    .content{flex:1;display:grid;grid-template-columns:1fr 350px;gap:12px;padding:12px;overflow:hidden}
+    #map{border:1px solid var(--border);border-radius:8px;background:var(--panel)}
+    
+    .sidebar{display:flex;flex-direction:column;gap:12px;overflow:hidden}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px;display:flex;flex-direction:column;overflow:hidden}
+    .panel h3{margin:0 0 8px 0;color:var(--text);font-size:13px;text-transform:uppercase;letter-spacing:0.6px}
+    
+    .detection-feed{flex:1;overflow-y:auto}
+    .detection-item{padding:10px;background:transparent;border-left:3px solid #ff0055;border-radius:4px;margin-bottom:8px;font-size:11px;line-height:1.5}
+    .detection-item b{color:#ff0055;font-weight:700}
+    .detection-item .coord{color:var(--muted);font-size:10px;font-family:monospace}
+    .detection-item .time{color:#7ba3c0;font-size:10px}
+    .detection-item .conf{color:#00ffcc;font-weight:700}
+    
+    .history-btn{background:transparent;border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:6px;font-size:12px;cursor:pointer;width:100%;text-align:left}
+    .history-btn:hover{background:rgba(255,255,255,0.03)}
+    
+    .legend{position:absolute;bottom:10px;left:10px;background:var(--panel);padding:8px 12px;border-radius:6px;font-size:12px;color:var(--muted);border:1px solid var(--border);font-weight:700;z-index:1000}
+    .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px}
+    .dot.red{background:#ff0055}
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div>🛡️ WAR ROOM — DEFENSE DASHBOARD</div>
+    <div class="chip">📡 Detection & Tracking System</div>
+    
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+      <button class="btn" onclick="clearHistory()">🗑 Clear History</button>
+      <a class="btn" href="./index.html">⬅ Dashboard</a>
+      <a class="btn" href="./offense.html" title="Offensive Units">Offense</a>
+      <a class="btn" href="./camera.html" title="Camera Detections">Camera</a>
+    </div>
+
+    <div class="ws">
+      <span id="liveTime" style="font-family:monospace;font-weight:700;margin-right:12px">--:--:--</span>
+      <i id="lamp" class="lamp"></i>
+      <span id="wst">OFFLINE</span>
+    </div>
+  </div>
+
+  <div class="content">
+    <div>
+      <div id="map"></div>
+      <div class="legend">● Detection Points (Live) | 🛸 Attack Drones</div>
+    </div>
+
+    <div class="sidebar">
+      <div class="panel">
+        <h3>🎥 Detection Feed (Live)</h3>
+        <div class="detection-feed" id="detectionFeed">—</div>
+      </div>
+
+      <div class="panel">
+        <h3>📊 History</h3>
+        <button class="history-btn" onclick="loadHistory()">📋 View Full History</button>
+        <div id="historyCount" style="margin-top:8px;font-size:11px;color:var(--muted)">—</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // Live clock update
+    function updateLiveClock() {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      const ss = String(now.getSeconds()).padStart(2, '0');
+      document.getElementById('liveTime').textContent = `${hh}:${mm}:${ss}`;
+    }
+    updateLiveClock();
+    setInterval(updateLiveClock, 1000);
+    // ================== MAP SETUP ==================
+    const map = L.map('map').setView([14.296422, 101.166061], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      maxZoom:19,
+      attribution:'&copy; OpenStreetMap'
+    }).addTo(map);
+
+    const cameraIcon = L.divIcon({
+      html: `<div style="width:32px;height:32px;background:linear-gradient(135deg,rgba(0,255,200,.3),rgba(0,200,255,.3));border:2px solid #00ffc8;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 16px rgba(0,255,200,.6),inset 0 0 8px rgba(0,255,200,.3);font-size:18px">📹</div>`,
+      iconSize: [32, 32],
+      iconAnchor: [16, 16]
+    });
+    L.marker([14.296422, 101.166061], {icon: cameraIcon})
+      .bindTooltip('🎥 CAMERA_01', {permanent: true, direction: 'top', offset: [0, -10], className: 'drone-label'})
+      .addTo(map);
+
+    // ================== STATE ==================
+    const detLayer = L.layerGroup().addTo(map);
+    const droneLayer = L.layerGroup().addTo(map);
+    let detections = [];
+    let detectionHistory = [];
+    let attackDrones = {};
+    let maxDetections = 20;
+
+    // ================== UI ==================
+    const lamp = document.getElementById('lamp');
+    const wst = document.getElementById('wst');
+
+    function setWsUI(state){
+      lamp.classList.remove('connected','connecting','error');
+      if(state==='OPEN'){ lamp.classList.add('connected'); wst.textContent='CONNECTED'; }
+      else if(state==='CONNECTING'){ lamp.classList.add('connecting'); wst.textContent='CONNECTING...'; }
+      else if(state==='ERROR'){ lamp.classList.add('error'); wst.textContent='ERROR'; }
+      else { wst.textContent='DISCONNECTED'; }
+    }
+
+    // ================== REDRAW ==================
+    function redraw(){
+      detLayer.clearLayers();
+      droneLayer.clearLayers();
+
+      // Detection points
+      detections.forEach(d=>{
+        L.circleMarker([d.lat, d.lon],{
+          radius:8, color:'#ff0055', fillColor:'#ff4444', fillOpacity:0.8, weight:2
+        })
+        .bindTooltip(`${d.drone_id || 'Unknown'}<br>Conf: ${d.confidence || 0}`, {permanent:false, className:'drone-label'})
+        .addTo(detLayer);
+      });
+
+      // Attack drones
+      Object.entries(attackDrones).forEach(([droneId, drone]) => {
+        const droneIcon = L.divIcon({
+          html: `<div style="
+            width:28px;height:28px;
+            background:radial-gradient(circle, #ff3333, #cc0000);
+            border:2px solid #ff0055;
+            border-radius:4px;
+            display:flex;align-items:center;justify-content:center;
+            box-shadow:0 0 12px rgba(255,51,51,0.8);
+            font-size:16px;
+            transform:rotate(${drone.heading || 0}deg);
+          ">🛸</div>`,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14]
+        });
+
+        const batCol = drone.battery > 70 ? '#4ade80' : drone.battery > 40 ? '#facc15' : '#ff6b6b';
+        const tooltip = `<b>${droneId}</b><br>🔋 ${drone.battery.toFixed(0)}%<br>📡 ${drone.signal.toFixed(0)}%<br>✈ ${drone.velocity.toFixed(1)} m/s<br>📍 ${drone.altitude.toFixed(0)}m`;
+
+        L.marker([drone.lat, drone.lon], {icon: droneIcon})
+          .bindTooltip(tooltip, {permanent:false, className:'drone-label'})
+          .addTo(droneLayer);
+      });
+
+      // Update detection feed
+      updateDetectionFeed();
+    }
+
+    function updateDetectionFeed(){
+      const feed = document.getElementById('detectionFeed');
+      const html = detections.slice(0, 10).map(d => {
+        const time = new Date(d.ts).toLocaleTimeString();
+        return `<div class="detection-item">
+          <div class="time">${time}</div>
+          <div><b>${d.drone_id || 'Unknown'}</b> - ${d.raw_type || 'unknown'}</div>
+          <div class="coord">📍 ${(+d.lat).toFixed(5)}, ${(+d.lon).toFixed(5)}</div>
+          <div>Confidence: <span class="conf">${((d.confidence || 0) * 100).toFixed(0)}%</span></div>
+        </div>`;
+      }).join('');
+
+      feed.innerHTML = html || '<div style="color:#666;font-size:11px;text-align:center;padding:20px">No detections</div>';
+
+      // Update history count
+      document.getElementById('historyCount').innerHTML = `Total recorded: <b>${detectionHistory.length}</b>`;
+    }
+
+    function clearHistory(){
+      if(confirm('Clear all detection history?')){
+        detectionHistory = [];
+        localStorage.removeItem('defense:detectionHistory');
+        updateDetectionFeed();
+      }
+    }
+
+    function loadHistory(){
+      try{
+        const hist = JSON.parse(localStorage.getItem('defense:detectionHistory') || '[]');
+        const txt = hist.map(d => {
+          const time = new Date(d.ts).toLocaleString();
+          return `${time} | ${d.drone_id} | Conf: ${((d.confidence || 0) * 100).toFixed(0)}% | (${(+d.lat).toFixed(5)}, ${(+d.lon).toFixed(5)})`;
+        }).join('\n');
+        alert(`Detection History (${hist.length} records):\n\n${txt || '(empty)'}`);
+      }catch(e){
+        alert('Error loading history');
+      }
+    }
+
+    // ================== WEBSOCKET ==================
+    const url = localStorage.getItem('warroom:ws') || 'ws://localhost:8765/stream';
+    let retry = 0;
+
+    function openWs(){
+      setWsUI('CONNECTING');
+      const ws = new WebSocket(url);
+      
+      ws.onopen = ()=>{ retry=0; setWsUI('OPEN'); };
+      ws.onerror = ()=> setWsUI('ERROR');
+      ws.onclose = ()=>{
+        setWsUI('DISCONNECTED');
+        const wait = Math.min(15000, 1000*(2**retry++));
+        console.log(`Reconnecting in ${wait/1000}s`);
+        setTimeout(openWs, wait);
+      };
+
+      ws.onmessage = ev=>{
+        try{
+          const msg = JSON.parse(ev.data);
+
+          // Detection
+          if(msg.type==='detection' && msg.data){
+            const d = msg.data;
+            const det = {
+              lat: +d.lat,
+              lon: +d.lon,
+              confidence: +(d.confidence ?? 0),
+              raw_type: d.raw_type || 'unknown',
+              drone_id: d.drone_id || 'Unknown',
+              ts: d.ts || new Date().toISOString(),
+              heading: d.heading || 0,
+              altitude: d.altitude || 0
+            };
+            detections.unshift(det);
+            if(detections.length > maxDetections) detections.pop();
+
+            // Save to history
+            detectionHistory.unshift(det);
+            localStorage.setItem('defense:detectionHistory', JSON.stringify(detectionHistory.slice(0, 1000)));
+
+            redraw();
+          }
+
+          // Route point (attack drone)
+          if(msg.type==='route_point' && msg.data && msg.data.role==='attack'){
+            const d = msg.data;
+            attackDrones[d.drone_id] = {
+              lat: +d.lat,
+              lon: +d.lon,
+              battery: +(d.battery ?? 50),
+              signal: +(d.signal ?? 50),
+              velocity: +(d.velocity ?? 0),
+              altitude: +(d.altitude ?? 0),
+              heading: +(d.heading ?? 0),
+              ts: d.ts
+            };
+            redraw();
+          }
+        }catch(e){ console.warn('Bad message', e); }
+      };
+    }
+
+    // Start
+    openWs();
+    redraw();
+  </script>
+</body>
+</html>

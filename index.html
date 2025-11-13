@@ -1,0 +1,653 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>WAR ROOM — Tactical Dashboard</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root{
+    --bg:#0f1720;
+    --panel:#111417;
+    --text:#e6eef8;
+    --muted:#9aa7b9;
+    --primary:#2b6cb0;
+    --accent:#6b7280;
+    --border:#1f2933
+  }
+  *{box-sizing:border-box}
+  html,body{
+    height:100%;
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font:15px/1.6 'Segoe UI','Helvetica Neue',Arial,sans-serif
+  }
+  body::before{
+    content:'';
+    position:fixed;
+    top:0;left:0;right:0;bottom:0;
+    pointer-events:none;
+    z-index:1
+  }
+  .header{
+    background:var(--panel);
+    padding:14px 16px;
+    border-bottom:2px solid var(--border);
+    position:relative;
+    z-index:2
+  }
+  .header h2{letter-spacing:1px}
+  .small{color:var(--muted);font-size:13px}
+  .wrap{
+    display:grid;
+    grid-template-columns:2fr 0.9fr 1fr;
+    gap:14px;
+    padding:14px;
+    position:relative;
+    z-index:2
+  }
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:14px;
+    backdrop-filter:none;
+    box-shadow:0 1px 0 rgba(0,0,0,.4)
+  }
+  .panel h3{
+    color:var(--text);
+    letter-spacing:0.4px;
+    margin:0 0 10px 0
+  }
+  .btn{
+    background:var(--primary);
+    border:none;
+    color:#fff;
+    padding:12px 18px;
+    border-radius:8px;
+    text-decoration:none;
+    display:inline-block;
+    cursor:pointer;
+    font-weight:700;
+    font-size:14px;
+    letter-spacing:0.3px;
+    transition:transform .12s, box-shadow .12s
+  }
+  .btn.secondary{
+    background:transparent;
+    color:var(--muted);
+    border:1px solid var(--border)
+  }
+  .btn:active{transform:translateY(1px)}
+  .lamp{
+    display:inline-block;
+    width:10px;height:10px;
+    border-radius:50%;
+    background:#444;
+    margin:0 8px
+  }
+  /* status lamp states (connected / connecting / error) */
+  .lamp.on,.lamp.connected{
+    background:#16a34a;
+    box-shadow:0 0 8px rgba(22,163,74,0.6)
+  }
+  .lamp.connecting{
+    background:#f59e0b;
+    box-shadow:0 0 6px rgba(245,158,11,0.4)
+  }
+  .lamp.err,.lamp.error{
+    background:#dc2626;
+    box-shadow:0 0 8px rgba(220,38,38,0.6)
+  }
+  @keyframes droneFloat {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-3px); }
+  }
+  .drone-float { animation: droneFloat 2s ease-in-out infinite; }
+  /* Map sizing */
+  #map{
+    height:72vh;
+    border:1px solid var(--border);
+    border-radius:8px;
+    background:var(--panel);
+    box-shadow:0 1px 0 rgba(0,0,0,.4)
+  }
+  /* KPI card */
+  .kpi-card{
+    background:transparent;
+    border:1px solid rgba(255,255,255,0.03);
+    border-radius:8px;
+    padding:12px;
+    margin-bottom:8px
+  }
+  .kpi-value{
+    font-size:36px;
+    font-weight:800;
+    color:var(--text);
+    margin-bottom:6px
+  }
+  .kpi-label{
+    color:var(--muted);
+    font-size:12px;
+    font-weight:700;
+    text-transform:uppercase
+  }
+  .status-section{
+    border-bottom:1px solid rgba(255,255,255,0.03);
+    padding-bottom:12px;
+    margin-bottom:12px
+  }
+  .section-title{
+    font-weight:700;
+    color:var(--text);
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:0.6px;
+    margin-bottom:10px;
+    display:flex;
+    align-items:center;
+    gap:8px
+  }
+  .alert-item{
+    padding:10px 12px;
+    background:transparent;
+    border-left:3px solid rgba(255,255,255,0.03);
+    border-radius:4px;
+    margin-bottom:8px;
+    font-size:12px;
+    line-height:1.6;
+    color:var(--muted);
+    font-family:monospace;
+    display:flex;
+    gap:10px;
+    align-items:flex-start
+  }
+  .drone-item{
+    padding:10px 12px;
+    background:transparent;
+    border-left:3px solid rgba(255,255,255,0.03);
+    border-radius:4px;
+    margin-bottom:8px;
+    font-size:12px;
+    line-height:1.6;
+    font-family:monospace
+  }
+  .drone-item b{ color:var(--text); font-weight:700 }
+  .drone-coords{
+    color:var(--muted);
+    font-size:11px;
+    font-family:monospace;
+    opacity:0.9
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+      <div>
+        <h2 style="margin:0">WAR ROOM — Tactical Command Dashboard</h2>
+        <div class="small">
+          Mission: <b id="missionNameLabel">Operation Sentinel</b>
+          • Status: <b style="color:#9bff99">ACTIVE</b>
+          • WS: <i id="wsLamp" class="lamp"></i><span id="wsState">DISCONNECTED</span>
+          • Time: <b id="liveTime" style="font-family:monospace">--:--:--</b>
+        </div>
+      </div>
+      <div class="nav" style="display:flex;gap:8px">
+        <a class="btn" href="./controls.html">Controls</a>
+        <a class="btn" href="./defense-camera.html" title="Defense Camera">🛡️ Defense</a>
+        <a class="btn" href="./offense.html" title="เฉพาะโดรนฝ่ายรุก">Offense view</a>
+        <a class="btn" href="./camera.html" title="เฉพาะการตรวจจับจากกล้อง">Camera view</a>
+        <a class="btn" href="./imagery.html" title="Image Viewer">📹 Imagery</a>
+        <a class="btn" href="./history.html" title="ประวัติการตรวจจับ">History</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="panel">
+      <h3 style="margin:0 0 8px">Tactical Map</h3>
+      <div id="map"></div>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 8px">Alert Status</h3>
+      <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:14px">
+        <div class="kpi-card">
+          <div class="kpi-value" id="k1">—</div>
+          <div class="kpi-label">🎥 Active Detections</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-value" id="k2">—</div>
+          <div class="kpi-label">✈ Active Tracks</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-value" id="k3" style="font-size:20px">—</div>
+          <div class="kpi-label">⏱ Last Alert</div>
+        </div>
+      </div>
+
+      <div class="status-section">
+        <div class="section-title">
+          <span class="section-icon"></span> Latest Detections
+        </div>
+        <div id="alerts" style="line-height:1.4;max-height:280px;overflow-y:auto">—</div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3 style="margin:0 0 8px">🔴 Active Offense</h3>
+      <div id="dronesList" style="line-height:1.4;max-height:500px;overflow-y:auto">—</div>
+    </div>
+  </div>
+
+<script>
+/* ===================== CONFIG & STATE ===================== */
+const START = [14.296422,101.166061];
+
+const wsURL = localStorage.getItem('warroom:ws') || 'ws://localhost:8765/stream';
+
+const maxPoints = 10; // ล็อก 10 จุดล่าสุดบนหน้า
+
+// Live clock update
+function updateLiveClock() {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  document.getElementById('liveTime').textContent = `${hh}:${mm}:${ss}`;
+}
+updateLiveClock();
+setInterval(updateLiveClock, 1000);
+let missionName = localStorage.getItem('warroom:mission') || 'Operation Sentinel';
+
+let detections = JSON.parse(localStorage.getItem('warroom:detections')||'[]');
+let routes = JSON.parse(localStorage.getItem('warroom:routes')||'[]');
+let nextDetId = (detections.reduce((m,d)=>Math.max(m,d.id||0),0) || 0) + 1;
+
+function saveState(){
+  localStorage.setItem('warroom:mission', missionName);
+  localStorage.setItem('warroom:detections', JSON.stringify(detections));
+  localStorage.setItem('warroom:routes', JSON.stringify(routes));
+}
+
+document.getElementById('missionNameLabel').textContent = missionName;
+
+/* ===================== MAP ===================== */
+const map = L.map('map').setView(START, 12);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  maxZoom:19,
+  attribution:'&copy; OpenStreetMap'
+}).addTo(map);
+
+
+const detLayer = L.layerGroup().addTo(map);
+const routeLineLayer = L.layerGroup().addTo(map);
+const arrowLayer = L.layerGroup().addTo(map);
+
+// Camera marker at center
+const cameraIcon = L.divIcon({
+  html: `<div style="width:32px;height:32px;background:linear-gradient(135deg,rgba(0,255,200,.3),rgba(0,200,255,.3));border:2px solid #00ffc8;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 16px rgba(0,255,200,.6),inset 0 0 8px rgba(0,255,200,.3);font-size:18px">📹</div>`,
+  className: 'camera-icon',
+  iconSize: [32, 32],
+  iconAnchor: [16, 16]
+});
+L.marker(START, {icon: cameraIcon})
+  .bindTooltip('🎥 CAMERA_01 (Fixed)', {
+    permanent: true,
+    direction: 'top',
+    offset: [0, -10],
+    className: 'drone-label'
+  })
+  .addTo(map)
+  .openTooltip();
+
+/* ===================== ROLE COLORS ===================== */
+function getRole(id, routes){
+  // ค้นหา role จากข้อมูล routes ที่มีอยู่
+  for(let r of routes){
+    if(r.drone_id === id && r.role) return r.role;
+  }
+  // fallback: role ตามเลขคู่คี่ของ ID
+  const m = String(id||'').match(/(\d+)$/);
+  return (m && (parseInt(m[1],10)%2===1)) ? 'offense' : 'defense';
+}
+function roleColor(role){
+  return role==='offense' || role==='friendly' ? '#34d399' : '#ff6699';
+}
+
+/* ===================== DEDUP & HISTORY ===================== */
+const seen = new Set(); // กันซ้ำต่อ session
+function dedupKey(d){
+  return `${d.source_id||''}:${(+d.lat).toFixed(5)},${(+d.lon).toFixed(5)},${new Date(d.ts).getTime()}`;
+}
+
+function pushHistoryDet(d){
+  try{
+    const key='warroom:history:detections';
+    const cur = JSON.parse(localStorage.getItem(key)||'[]');
+    cur.unshift(d);
+    const MAX=5000;
+    if(cur.length>MAX) cur.length=MAX;
+    // purge เก่ากว่า 7 วัน
+    const cutoff = Date.now()-7*24*60*60*1000;
+    const pruned = cur.filter(x => new Date(x.ts).getTime() >= cutoff);
+    localStorage.setItem(key, JSON.stringify(pruned));
+  }catch{}
+}
+
+function keepRecentDetections(limit=10){
+  const sorted = detections.slice().sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+  const recent = sorted.slice(0, limit);
+  const overflow = sorted.slice(limit);
+  overflow.forEach(pushHistoryDet);
+  detections = recent;
+}
+
+/* ===================== INGEST ===================== */
+function pushDet(x){
+  const lat=Number(x.lat), lon=Number(x.lon);
+  if(!Number.isFinite(lat)||!Number.isFinite(lon)) return;
+  const d = {
+    id: nextDetId++,
+    source_id: x.source_id || 'rt',
+    lat, lon,
+    ts: x.ts || new Date().toISOString(),
+    confidence: x.confidence!==undefined ? Number(x.confidence) : null,
+    raw_type: x.raw_type || 'unknown'
+  };
+  const k = dedupKey(d);
+  if (seen.has(k)) return;
+  seen.add(k);
+  detections.push(d);
+}
+
+function pushRoute(x){
+  if(!x||!x.drone_id) return;
+  const lat=Number(x.lat), lon=Number(x.lon);
+  if(!Number.isFinite(lat)||!Number.isFinite(lon)) return;
+  const role = x.role || (x.raw_type && x.raw_type.includes('attack')
+               ? 'attack'
+               : (x.role==='friendly' ? 'friendly' : (x.role||'unknown')));
+
+  routes.push({
+    drone_id:String(x.drone_id),
+    seq:x.seq!==undefined? parseInt(x.seq,10): undefined,
+    lat, lon,
+    ts:x.ts||undefined,
+    battery: x.battery !== undefined ? Number(x.battery) : null,
+    signal: x.signal !== undefined ? Number(x.signal) : null,
+    velocity: x.velocity !== undefined ? Number(x.velocity) : null,
+    altitude: x.altitude !== undefined ? Number(x.altitude) : null,
+    status: x.status || 'active',
+    role: role
+  });
+
+  // limit routes length กันข้อมูลบวมเกินไป
+  if (routes.length > 2000) routes.shift();
+}
+
+/* ===================== RENDER ===================== */
+function fmtTime(s){
+  try{ return new Date(s).toLocaleString(); }
+  catch{ return s||''; }
+}
+
+function trackDrone(droneId){
+  // ค้นหาโดรนล่าสุดจาก routes
+  const droneRoutes = routes.filter(r => r.drone_id === droneId);
+  if(droneRoutes.length === 0) return;
+  
+  const lastRoute = droneRoutes[droneRoutes.length - 1];
+  const lat = lastRoute.lat;
+  const lon = lastRoute.lon;
+  
+  // zoom ไปที่โดรนนั้น
+  map.setView([lat, lon], 14, { animate: true, duration: 1 });
+}
+
+function redraw(){
+  // KPI
+  const k1El = document.getElementById('k1');
+  const k2El = document.getElementById('k2');
+  const k3El = document.getElementById('k3');
+
+  if(k1El){
+    k1El.textContent = String(detections.length);
+  }
+  if(k2El){
+    const uniqueDrones = Array.from(new Set(routes.map(r=>r.drone_id)));
+    k2El.textContent = String(uniqueDrones.length);
+  }
+  if(k3El){
+    k3El.textContent = detections.length ? fmtTime(detections[0].ts) : '-';
+  }
+
+  // Alerts (2 ล่าสุด)
+  document.getElementById('alerts').innerHTML = detections.slice()
+    .sort((a,b)=>new Date(b.ts)-new Date(a.ts))
+    .slice(0,2)
+    .map(d=>{
+      const typeIcon = d.raw_type === 'friendly_uav' ? '🛡️' : '⚠️';
+      return `<div class="alert-item">
+        <div class="drone-icon-thumb">${typeIcon}</div>
+        <div>
+          <div><code>${fmtTime(d.ts)}</code> <b>${d.raw_type||'unknown'}</b></div>
+          <div class="drone-coords">${(+d.lat).toFixed(5)}, ${(+d.lon).toFixed(5)}</div>
+          <div style="color:#00ffcc; font-size:11px">Confidence: <b>${(d.confidence ?? '-')}</b></div>
+        </div>
+      </div>`;
+    })
+    .join('') || '—';
+
+  // Drones list - split by role
+  const byId = new Map();
+  routes.forEach(r => {
+    if(!byId.has(r.drone_id)) byId.set(r.drone_id, []);
+    byId.get(r.drone_id).push(r);
+  });
+
+  const drones = Array.from(byId.entries())
+    .map(([id,arr])=>{
+      const last = arr.slice().sort((a,b)=>(a.seq||0)-(b.seq||0)).pop();
+      const role = last?.role || getRole(id, arr);
+      return {
+        id,
+        role,
+        lat:last?.lat,
+        lon:last?.lon,
+        ts:last?.ts,
+        seq:last?.seq,
+        battery: last?.battery,
+        signal: last?.signal,
+        velocity: last?.velocity,
+        altitude: last?.altitude,
+        status: last?.status
+      };
+    })
+    .sort((a,b)=>String(a.id).localeCompare(b.id));
+
+  // แสดงเฉพาะโดรนฝ่ายเราใน Active Offense
+  const offenseDrones = drones.filter(d => d.role === 'friendly');
+
+  let droneHtml = offenseDrones.map(d=>{
+      const batCol = d.battery > 70 ? '#00ff88' : d.battery > 40 ? '#ffaa00' : '#ff0055';
+      const sigCol = d.signal > 75 ? '#00ff88' : d.signal > 50 ? '#ffaa00' : '#ff0055';
+      return `<div class="drone-item" style="border-left-color:#00ff88;background:linear-gradient(135deg, rgba(0,255,136,.12) 0%, rgba(0,255,136,.05) 100%)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <b style="color:#00ff88">${d.id}</b>
+          <div style="display:flex;gap:4px;align-items:center">
+            <span style="font-size:9px;color:#7ba3c0;text-transform:uppercase">${d.status || 'active'}</span>
+            <button class="btn" style="padding:2px 6px;font-size:9px;background:#00ff88;color:#000;" onclick="trackDrone('${d.id}')">Track</button>
+          </div>
+        </div>
+        <div style="font-size:10px;color:#5a8aa8;margin-bottom:4px">📍 ${d.lat?.toFixed?d.lat.toFixed(5):'-'}, ${d.lon?.toFixed?d.lon.toFixed(5):'-'}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px">
+          <div>🔋 <span style="color:${batCol};font-weight:700">${d.battery?.toFixed?d.battery.toFixed(1):'-'}%</span></div>
+          <div>📡 <span style="color:${sigCol};font-weight:700">${d.signal?.toFixed?d.signal.toFixed(0):'-'}%</span></div>
+          <div>⚡ <span style="color:#00ffcc;font-weight:700">${d.velocity?.toFixed?d.velocity.toFixed(1):'-'} m/s</span></div>
+          <div>📏 <span style="color:#00ffcc;font-weight:700">${d.altitude?.toFixed?d.altitude.toFixed(0):'-'} m</span></div>
+        </div>
+      </div>`;
+    }).join('');
+
+  document.getElementById('dronesList').innerHTML =
+    droneHtml || '<div style="color:#666;font-size:11px;text-align:center;padding:20px">⚠️ No friendly offensive drones in operation</div>';
+
+  // Map
+  detLayer.clearLayers();
+  routeLineLayer.clearLayers();
+  arrowLayer.clearLayers();
+
+  // detections: โชว์ 10 ล่าสุดเสมอ
+  const detsToDraw = detections.slice(0,10);
+  detsToDraw.forEach(d=>{
+    L.circleMarker([d.lat,d.lon],{
+      radius:6,
+      color:'#ef4444',
+      fillColor:'#ef4444',
+      fillOpacity:.5,
+      weight:1
+    })
+    .bindTooltip(
+      `${d.raw_type||'unknown'} • ${d.source_id||''}\nconf ${d.confidence ?? '-'}\n${fmtTime(d.ts)}`
+    )
+    .addTo(detLayer);
+  });
+
+  // routes: แสดงเส้นทางทุกโดรน แต่สี/สไตล์ตาม role
+  byId.forEach((arr,id)=>{
+    const sorted = arr.slice().sort((a,b)=>(a.seq||0)-(b.seq||0));
+    const coords = sorted.map(p=>[p.lat,p.lon]);
+    const last = sorted[sorted.length - 1];
+    const role = last?.role || getRole(id, arr) || 'friendly';
+
+    const col = role === 'attack' || role === 'hostile'
+      ? '#ff6699'
+      : '#34d399';
+
+    // draw main route
+    if(coords.length>=2) {
+      L.polyline(coords,{
+        color:col,
+        weight:3,
+        opacity:.95
+      }).addTo(routeLineLayer);
+
+      // tail effect (เส้นประสำหรับ attack)
+      for(let i = Math.max(0, sorted.length - 5); i < sorted.length; i++){
+        const opacity = 0.25 + (i / Math.max(1, sorted.length)) * 0.5;
+        const weight = 2 + (i / Math.max(1, sorted.length)) * 1;
+        if(i < sorted.length - 1){
+          L.polyline(
+            [coords[i], coords[i+1]],
+            {
+              color:col,
+              weight:weight,
+              opacity:opacity,
+              dashArray: role==='attack' ? '2,6' : '5,5'
+            }
+          ).addTo(routeLineLayer);
+        }
+      }
+    }
+
+    // show drone icon at last point
+    if(sorted.length >= 1 && last){
+      let angle = 0;
+      if(sorted.length >= 2){
+        const prev = sorted[sorted.length - 2];
+        angle = (Math.atan2(last.lon - prev.lon, last.lat - prev.lat) * 180 / Math.PI) || 0;
+      }
+
+      const droneSvg = `<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+        <rect x="17" y="12" width="6" height="16" fill="${col}" rx="2" opacity="0.95"/>
+        <rect x="2" y="17" width="15" height="3" fill="${col}" rx="1.5"/>
+        <rect x="23" y="17" width="15" height="3" fill="${col}" rx="1.5"/>
+        <circle cx="20" cy="12" r="2" fill="${col}"/>
+      </svg>`;
+
+      const droneIcon = L.divIcon({
+        html: `<div class="drone-float" style="transform: rotate(${angle}deg); display:flex; align-items:center; justify-content:center">${droneSvg}</div>`,
+        className: 'drone-icon',
+        iconSize: [40, 40],
+        iconAnchor: [20, 20]
+      });
+
+      const marker = L.marker([last.lat,last.lon],{icon:droneIcon}).addTo(arrowLayer);
+      marker.bindTooltip(
+        `${id}\n${String(role).toUpperCase()}\nseq ${last.seq ?? '0'}`,
+        {permanent:true, direction:'top', offset:[0,-20], className:'drone-label'}
+      ).openTooltip();
+    }
+  });
+
+  // map maintains fixed zoom view (no auto-fit)
+}
+
+/* ===================== WS with BACKOFF ===================== */
+function setWsUI(s){
+  const lamp=document.getElementById('wsLamp');
+  const t=document.getElementById('wsState');
+  lamp.classList.remove('connected','connecting','error','on','err');
+  if(s==='OPEN'){
+    lamp.classList.add('connected');
+    t.textContent='CONNECTED';
+  } else if(s==='ERROR'){
+    lamp.classList.add('error');
+    t.textContent='ERROR';
+  } else if(s==='CONNECTING'){
+    lamp.classList.add('connecting');
+    t.textContent='CONNECTING...';
+  } else {
+    t.textContent='DISCONNECTED';
+  }
+}
+
+let retry=0, ws=null, hb=null;
+
+function handleMsg(m){
+  const t=m?.type, d=m?.data;
+  if(t==='detection'&&d) pushDet(d);
+  else if(t==='detections'&&Array.isArray(d)) d.forEach(pushDet);
+  else if(t==='route_point'&&d) pushRoute(d);
+  else if(t==='route_batch'&&Array.isArray(d)) d.forEach(pushRoute);
+  else if(t==='clear'){
+    const s=m.scope||'all';
+    if(s==='detections'||s==='all') detections=[];
+    if(s==='routes'||s==='all') routes=[];
+  }
+  keepRecentDetections(10);
+  saveState();
+  redraw();
+}
+
+function openWs(url){
+  setWsUI('CONNECTING');
+  ws = new WebSocket(url);
+  ws.onopen=()=>{
+    retry=0;
+    setWsUI('OPEN');
+    if(hb) clearInterval(hb);
+    hb=setInterval(()=>{
+      try{ws.send('{"type":"ping"}');}catch{}
+    },8000);
+  };
+  ws.onerror=()=> setWsUI('ERROR');
+  ws.onclose=()=>{
+    setWsUI('DISCONNECTED');
+    const wait=Math.min(15000, 1000*(2**(++retry)));
+    setTimeout(()=>openWs(url), wait);
+  };
+  ws.onmessage=(ev)=>{
+    try{ handleMsg(JSON.parse(ev.data)); }
+    catch{}
+  };
+}
+
+openWs(wsURL);
+redraw();
+</script>
+</body>
+</html>

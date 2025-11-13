@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>WAR ROOM — Detections History</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root{ --bg:#0f1720; --panel:#111417; --text:#e6eef8; --muted:#9aa7b9; --primary:#2b6cb0; --border:#1f2933 }
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font:15px 'Segoe UI','Helvetica Neue',Arial,sans-serif}
+  .top{display:flex;gap:8px;align-items:center;background:var(--panel);padding:12px 14px;border-bottom:2px solid var(--border);box-shadow:0 1px 0 rgba(0,0,0,.4)}
+  .top > strong{color:var(--text);letter-spacing:1px;font-size:14px}
+  .btn{background:var(--primary);border:none;color:#fff;padding:10px 14px;border-radius:8px;cursor:pointer;text-decoration:none;display:inline-block;font-weight:700;font-size:13px;letter-spacing:0.3px;box-shadow:0 2px 0 rgba(0,0,0,.35);transition:transform .12s}
+  .btn.secondary{background:transparent;color:var(--muted);border:1px solid var(--border)}
+  .wrap{padding:14px}
+  #map{height:55vh;border:1px solid var(--border);border-radius:8px;background:var(--panel);box-shadow:0 1px 0 rgba(0,0,0,.4)}
+  table{width:100%;border-collapse:collapse;margin-top:10px}
+  th{background:transparent;color:var(--muted);font-weight:700;letter-spacing:1px;padding:8px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left}
+  td{border-bottom:1px solid rgba(255,255,255,0.03);padding:8px;text-align:left;color:var(--text)}
+  input,select{background:#0b0f12;border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;font-family:inherit}
+</style>
+</head>
+<body>
+  <div class="top">
+    <strong>⚔️ WAR ROOM — DETECTION HISTORY</strong>
+    <a class="btn" href="./index.html">⬅ Dashboard</a>
+    <button class="btn" id="export">📥 Export CSV</button>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;font-size:12px">
+      <input id="q" placeholder="🔍 Search detections..." style="min-width:240px"/>
+      <select id="limit">
+        <option value="200">200 Latest</option>
+        <option value="500">500 Latest</option>
+        <option value="2000">2000 Latest</option>
+        <option value="all">All Records</option>
+      </select>
+      <button class="btn" id="clearHist">🗑️ Clear</button>
+    </div>
+  </div>
+  <div class="wrap">
+    <div id="map"></div>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th><th>Source</th><th>Lat</th><th>Lon</th><th>Time</th><th>Conf</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+<script>
+const $ = id=>document.getElementById(id);
+let hist = [];
+const map = L.map('map').setView([14.296422,101.166061], 7);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'© OpenStreetMap contributors'}).addTo(map);
+const layer = L.layerGroup().addTo(map);
+
+// Camera marker at center
+const cameraIcon = L.divIcon({
+  html: `<div style="width:32px;height:32px;background:linear-gradient(135deg,rgba(0,255,200,.3),rgba(0,200,255,.3));border:2px solid #00ffc8;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:0 0 16px rgba(0,255,200,.6),inset 0 0 8px rgba(0,255,200,.3);font-size:18px">📹</div>`,
+  className: 'camera-icon',
+  iconSize: [32, 32],
+  iconAnchor: [16, 16]
+});
+L.marker([14.296422,101.166061], {icon: cameraIcon}).bindTooltip('🎥 CAMERA_01 (Fixed)', {permanent: true, direction: 'top', offset: [0, -10]}).addTo(map).openTooltip();
+
+function loadHistory(){
+  try{ hist = JSON.parse(localStorage.getItem('warroom:history:detections')||'[]'); }
+  catch{ hist=[]; }
+}
+function saveHistory(){
+  localStorage.setItem('warroom:history:detections', JSON.stringify(hist));
+}
+function applyFilter(){
+  const q = $('q').value.trim().toLowerCase();
+  const lm = $('limit').value;
+  let arr = hist.slice();             // hist เก็บล่าสุดไว้หัวแถวอยู่แล้ว
+  if(lm!=='all') arr = arr.slice(0, Number(lm));
+  if(q){
+    arr = arr.filter(d=>{
+      const t = [
+        d.raw_type||'', d.source_id||'',
+        String(d.lat||''), String(d.lon||''), String(d.ts||''),
+        String(d.confidence ?? '')
+      ].join(' ').toLowerCase();
+      return t.includes(q);
+    });
+  }
+  // render map
+  layer.clearLayers();
+  const pts=[];
+  arr.forEach(d=>{
+    if(Number.isFinite(+d.lat) && Number.isFinite(+d.lon)){
+      L.circleMarker([+d.lat, +d.lon], {radius:4,color:'#ef4444',fillColor:'#ef4444',fillOpacity:.5,weight:1})
+        .bindTooltip(`${d.raw_type||'unknown'} • ${d.source_id||''}\nconf ${d.confidence ?? '-'}\n${d.ts||''}`).addTo(layer);
+      pts.push([+d.lat, +d.lon]);
+    }
+  });
+  if(pts.length) try{ map.fitBounds(L.latLngBounds(pts).pad(0.2)); }catch{}
+
+  // render table
+  $('rows').innerHTML = arr.map(d=>`
+    <tr>
+      <td>${d.raw_type||''}</td>
+      <td>${d.source_id||''}</td>
+      <td>${(+d.lat).toFixed(5)}</td>
+      <td>${(+d.lon).toFixed(5)}</td>
+      <td>${d.ts||''}</td>
+      <td>${d.confidence ?? ''}</td>
+    </tr>
+  `).join('');
+}
+
+$('export').addEventListener('click', ()=>{
+  const head=['raw_type','source_id','lat','lon','ts','confidence'];
+  const out=[head.join(',')];
+  hist.forEach(d=> out.push([
+    d.raw_type||'', d.source_id||'', d.lat, d.lon, d.ts||'', d.confidence??''
+  ].join(',')));
+  const blob=new Blob([out.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='detections_history.csv';
+  a.click();
+});
+$('clearHist').addEventListener('click', ()=>{
+  if(!confirm('ล้างประวัติทั้งหมดหรือไม่?')) return;
+  hist = [];
+  saveHistory();
+  applyFilter();
+});
+$('q').addEventListener('input', applyFilter);
+$('limit').addEventListener('change', applyFilter);
+
+// boot
+loadHistory();
+applyFilter();
+</script>
+</body>
+</html>

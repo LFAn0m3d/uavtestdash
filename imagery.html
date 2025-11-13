@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WAR ROOM — Camera Image Viewer</title>
+  <style>
+    :root{
+      --bg:#0f1720;
+      --panel:#111417;
+      --muted:#9aa7b9;
+      --text:#e6eef8;
+      --primary:#2b6cb0;
+      --accent:#7f7f7f;
+      --btn-text:#ffffff;
+      --border:#1f2933;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;height:100vh;display:flex;flex-direction:column}
+    
+    .topbar{
+      display:flex;align-items:center;gap:12px;
+      background:var(--panel);
+      color:var(--text);padding:12px 14px;
+      border-bottom:2px solid var(--border);
+      font-weight:700;
+      flex-shrink:0;
+    }
+    .topbar > div:first-child{font-weight:800;letter-spacing:1px}
+    .chip{background:transparent;border:1px solid var(--border);padding:6px 10px;border-radius:6px;font-size:12px;color:var(--muted)}
+    .btn{background:var(--primary);border:none;color:var(--btn-text);padding:10px 14px;border-radius:8px;cursor:pointer;text-decoration:none;font-weight:700;font-size:13px;letter-spacing:0.3px;box-shadow:0 2px 0 rgba(0,0,0,0.35);transition:transform .12s ease, box-shadow .12s ease}
+    .btn:hover{transform:translateY(-2px)}
+    .btn.secondary{background:transparent;color:var(--text);border:1px solid var(--border)}
+    .ws{margin-left:auto;font-size:12px;color:var(--muted);letter-spacing:0.4px;display:flex;align-items:center;gap:8px}
+    .lamp{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:8px;background:#6b7280;transition:background .12s, box-shadow .12s}
+    .lamp.connected{background:#16a34a;box-shadow:0 0 8px rgba(22,163,74,0.6)}
+    .lamp.connecting{background:#f59e0b;box-shadow:0 0 6px rgba(245,158,11,0.4)}
+    .lamp.error{background:#dc2626;box-shadow:0 0 8px rgba(220,38,38,0.6)}
+    
+    .content{flex:1;display:grid;grid-template-columns:1fr 280px;gap:12px;padding:12px;overflow:hidden}
+    
+    .main-viewer{
+      display:flex;flex-direction:column;
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:8px;
+      overflow:hidden;
+      box-shadow:0 4px 12px rgba(0,0,0,0.3);
+    }
+    
+    .image-viewport{
+      flex:1;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:#000;
+      position:relative;
+      overflow:hidden;
+    }
+    
+    .image-viewport img{
+      max-width:100%;
+      max-height:100%;
+      object-fit:contain;
+    }
+    
+    .image-viewport .placeholder{
+      text-align:center;
+      color:var(--muted);
+    }
+    
+    .viewer-controls{
+      padding:12px;
+      background:rgba(0,0,0,0.2);
+      border-top:1px solid var(--border);
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    
+    .viewer-controls .btn{
+      flex:1;
+      min-width:80px;
+      padding:8px 10px;
+      font-size:12px;
+    }
+    
+    .image-meta{
+      padding:8px 12px;
+      background:rgba(0,0,0,0.1);
+      border-top:1px solid var(--border);
+      font-size:11px;
+      color:var(--muted);
+      line-height:1.4;
+    }
+    
+    /* Sidebar */
+    .sidebar{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      overflow:hidden;
+    }
+    
+    .panel{
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:8px;
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      box-shadow:0 2px 8px rgba(0,0,0,0.2);
+    }
+    
+    .panel h3{
+      margin:0 0 8px 0;
+      color:var(--text);
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:0.6px;
+    }
+    
+    .detection-list{
+      flex:1;
+      overflow-y:auto;
+      font-size:10px;
+    }
+    
+    .detection-item{
+      padding:8px;
+      background:rgba(255,0,85,0.08);
+      border-left:2px solid #ff0055;
+      border-radius:4px;
+      margin-bottom:6px;
+      cursor:pointer;
+      transition:background .2s;
+    }
+    
+    .detection-item:hover{
+      background:rgba(255,0,85,0.15);
+    }
+    
+    .detection-item.active{
+      background:rgba(255,0,85,0.25);
+      border-left-color:#ff00ff;
+    }
+    
+    .detection-time{
+      color:#7ba3c0;
+      font-size:9px;
+      margin-bottom:2px;
+    }
+    
+    .detection-id{
+      color:#ff0055;
+      font-weight:700;
+    }
+    
+    .detection-conf{
+      color:#00ffcc;
+      font-size:9px;
+    }
+    
+    .snapshot-btn{
+      width:100%;
+      padding:10px;
+      background:transparent;
+      border:1px solid var(--border);
+      color:var(--text);
+      border-radius:6px;
+      cursor:pointer;
+      font-weight:700;
+      font-size:12px;
+      transition:background .2s;
+    }
+    
+    .snapshot-btn:hover{
+      background:rgba(255,255,255,0.05);
+    }
+    
+    .controls-section{
+      padding:10px;
+      background:rgba(0,0,0,0.1);
+      border-top:1px solid var(--border);
+      display:flex;
+      gap:6px;
+      flex-direction:column;
+    }
+    
+    .controls-section .btn{
+      padding:8px 10px;
+      font-size:11px;
+    }
+    
+    @media (max-height: 768px) {
+      .content {
+        grid-template-columns: 1fr;
+      }
+      .sidebar {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div>📹 WAR ROOM — CAMERA IMAGE VIEWER</div>
+    <div class="chip">🎥 Real-time Detection Imagery</div>
+    
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+      <a class="btn" href="./index.html">⬅ Dashboard</a>
+      <a class="btn" href="./defense-camera.html" title="Defense">🛡️ Defense</a>
+      <a class="btn" href="./offense.html" title="Offense">⚔️ Offense</a>
+    </div>
+
+    <div class="ws">
+      <span id="liveTime" style="font-family:monospace;font-weight:700;margin-right:12px">--:--:--</span>
+      <i id="lamp" class="lamp"></i>
+      <span id="wst">OFFLINE</span>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- MAIN VIEWER -->
+    <div class="main-viewer">
+      <div class="image-viewport" id="imageViewport">
+        <div class="placeholder">
+          <div style="font-size:24px;margin-bottom:8px">📹</div>
+          <div>No image available</div>
+          <div style="font-size:10px;margin-top:4px;color:#666">Waiting for detection...</div>
+        </div>
+      </div>
+      
+      <div class="viewer-controls">
+        <button class="btn" onclick="previousImage()" title="Previous detection">⬅ Previous</button>
+        <button class="btn" onclick="nextImage()" title="Next detection">Next ➜</button>
+        <button class="btn" onclick="takeSnapshot()" title="Save screenshot">💾 Snapshot</button>
+        <button class="btn" onclick="clearImages()" title="Clear all">🗑 Clear</button>
+      </div>
+      
+      <div class="image-meta">
+        <div id="imageMeta">No image selected</div>
+      </div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="panel">
+        <h3>📊 Detections</h3>
+        <div class="detection-list" id="detectionList">—</div>
+        <div class="controls-section">
+          <button class="snapshot-btn" onclick="generateReport()">📋 Generate Report</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const viewport = $('imageViewport');
+    
+    // Live clock update
+    function updateLiveClock() {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      const ss = String(now.getSeconds()).padStart(2, '0');
+      $('liveTime').textContent = `${hh}:${mm}:${ss}`;
+    }
+    updateLiveClock();
+    setInterval(updateLiveClock, 1000);
+    
+    // Simulated image storage (in real scenario, images come from server)
+    let detectionSnapshots = [];
+    let currentImageIndex = -1;
+    
+    // Generate synthetic detection images
+    function generateDetectionImage(detection, index) {
+      return {
+        index: index,
+        drone_id: detection.drone_id,
+        confidence: detection.confidence,
+        timestamp: detection.ts,
+        lat: detection.lat,
+        lon: detection.lon,
+        image: generateSyntheticImage(detection, index)
+      };
+    }
+    
+    function generateSyntheticImage(detection, index) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 640;
+      canvas.height = 480;
+      const ctx = canvas.getContext('2d');
+      
+      // Background gradient (thermal-like)
+      const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+      grad.addColorStop(0, '#001a2e');
+      grad.addColorStop(0.5, '#0f3460');
+      grad.addColorStop(1, '#16213e');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Thermal spots (UAVs)
+      ctx.fillStyle = `rgba(255, 50, 50, ${0.4 + detection.confidence * 0.4})`;
+      const x = canvas.width * (0.3 + Math.sin(index * 0.5) * 0.2);
+      const y = canvas.height * (0.3 + Math.cos(index * 0.5) * 0.2);
+      ctx.beginPath();
+      ctx.arc(x, y, 30 + detection.confidence * 20, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Glow effect
+      ctx.strokeStyle = `rgba(255, 100, 100, ${0.2 + detection.confidence * 0.3})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, 50 + detection.confidence * 30, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // Grid overlay
+      ctx.strokeStyle = 'rgba(0, 255, 100, 0.1)';
+      ctx.lineWidth = 1;
+      for(let i=0; i<canvas.width; i+=40) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i, canvas.height);
+        ctx.stroke();
+      }
+      for(let i=0; i<canvas.height; i+=40) {
+        ctx.beginPath();
+        ctx.moveTo(0, i);
+        ctx.lineTo(canvas.width, i);
+        ctx.stroke();
+      }
+      
+      // Crosshair
+      ctx.strokeStyle = 'rgba(0, 255, 100, 0.3)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(canvas.width/2 - 20, canvas.height/2);
+      ctx.lineTo(canvas.width/2 + 20, canvas.height/2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(canvas.width/2, canvas.height/2 - 20);
+      ctx.lineTo(canvas.width/2, canvas.height/2 + 20);
+      ctx.stroke();
+      
+      // HUD info
+      ctx.fillStyle = '#00ff64';
+      ctx.font = '12px monospace';
+      ctx.fillText(`DRONE: ${detection.drone_id}`, 10, 30);
+      ctx.fillText(`CONF: ${(detection.confidence*100).toFixed(0)}%`, 10, 50);
+      ctx.fillText(`POS: ${(+detection.lat).toFixed(5)}, ${(+detection.lon).toFixed(5)}`, 10, 70);
+      
+      return canvas.toDataURL('image/png');
+    }
+    
+    function setWsUI(status) {
+      const lamp = $('lamp');
+      lamp.classList.remove('connected','connecting','error');
+      if(status === 'CONNECTED') {
+        lamp.classList.add('connected');
+        $('wst').textContent = 'CONNECTED';
+      } else if(status === 'CONNECTING') {
+        lamp.classList.add('connecting');
+        $('wst').textContent = 'CONNECTING...';
+      } else if(status === 'ERROR') {
+        lamp.classList.add('error');
+        $('wst').textContent = 'ERROR';
+      } else {
+        $('wst').textContent = 'DISCONNECTED';
+      }
+    }
+    
+    function updateDetectionList() {
+      const html = detectionSnapshots.map((snap, i) => `
+        <div class="detection-item ${i === currentImageIndex ? 'active' : ''}" onclick="selectImage(${i})">
+          <div class="detection-time">${new Date(snap.timestamp).toLocaleTimeString()}</div>
+          <div class="detection-id">${snap.drone_id}</div>
+          <div class="detection-conf">Conf: ${(snap.confidence*100).toFixed(0)}%</div>
+        </div>
+      `).join('');
+      $('detectionList').innerHTML = html || '<div style="color:#666;padding:8px">No detections</div>';
+    }
+    
+    function selectImage(index) {
+      if(index >= 0 && index < detectionSnapshots.length) {
+        currentImageIndex = index;
+        displayImage();
+      }
+    }
+    
+    function displayImage() {
+      if(currentImageIndex < 0 || currentImageIndex >= detectionSnapshots.length) {
+        viewport.innerHTML = `<div class="placeholder"><div style="font-size:24px;margin-bottom:8px">📹</div><div>No image</div></div>`;
+        $('imageMeta').innerHTML = 'No image selected';
+        return;
+      }
+      
+      const snap = detectionSnapshots[currentImageIndex];
+      viewport.innerHTML = `<img src="${snap.image}" alt="Detection" />`;
+      
+      const time = new Date(snap.timestamp).toLocaleString();
+      $('imageMeta').innerHTML = `
+        <strong>${snap.drone_id}</strong> • Confidence: ${(snap.confidence*100).toFixed(0)}%<br>
+        <small>${time}</small><br>
+        Position: ${(snap.lat).toFixed(5)}°, ${(snap.lon).toFixed(5)}° <br>
+        Image ${currentImageIndex + 1} / ${detectionSnapshots.length}
+      `;
+      
+      updateDetectionList();
+    }
+    
+    function previousImage() {
+      if(detectionSnapshots.length === 0) return;
+      currentImageIndex = (currentImageIndex - 1 + detectionSnapshots.length) % detectionSnapshots.length;
+      displayImage();
+    }
+    
+    function nextImage() {
+      if(detectionSnapshots.length === 0) return;
+      currentImageIndex = (currentImageIndex + 1) % detectionSnapshots.length;
+      displayImage();
+    }
+    
+    function takeSnapshot() {
+      if(currentImageIndex < 0) return;
+      const snap = detectionSnapshots[currentImageIndex];
+      const link = document.createElement('a');
+      link.href = snap.image;
+      link.download = `detection-${snap.drone_id}-${Date.now()}.png`;
+      link.click();
+    }
+    
+    function clearImages() {
+      if(confirm('Clear all detection images?')) {
+        detectionSnapshots = [];
+        currentImageIndex = -1;
+        displayImage();
+        updateDetectionList();
+      }
+    }
+    
+    function generateReport() {
+      if(detectionSnapshots.length === 0) {
+        alert('No detections to report');
+        return;
+      }
+      
+      const report = detectionSnapshots.map((s, i) => 
+        `${i+1}. ${s.drone_id} | Conf: ${(s.confidence*100).toFixed(0)}% | ${new Date(s.timestamp).toLocaleString()} | (${s.lat.toFixed(5)}, ${s.lon.toFixed(5)})`
+      ).join('\n');
+      
+      alert(`DETECTION REPORT\n${new Date().toLocaleString()}\n\n${report}\n\nTotal: ${detectionSnapshots.length} detections`);
+    }
+    
+    // WebSocket connection
+    const wsURL = localStorage.getItem('warroom:ws') || 'ws://localhost:8765/stream';
+    let wsRetry = 0;
+    
+    function openWs() {
+      setWsUI('CONNECTING');
+      const ws = new WebSocket(wsURL);
+      
+      ws.onopen = () => {
+        wsRetry = 0;
+        setWsUI('CONNECTED');
+      };
+      
+      ws.onerror = () => setWsUI('ERROR');
+      
+      ws.onclose = () => {
+        setWsUI('DISCONNECTED');
+        const wait = Math.min(15000, 1000 * (2 ** wsRetry++));
+        setTimeout(openWs, wait);
+      };
+      
+      ws.onmessage = ev => {
+        try {
+          const msg = JSON.parse(ev.data);
+          
+          if(msg.type === 'detection' && msg.data) {
+            const det = msg.data;
+            const snapshot = generateDetectionImage(det, detectionSnapshots.length);
+            detectionSnapshots.unshift(snapshot);
+            if(detectionSnapshots.length > 50) detectionSnapshots.pop();
+            
+            if(currentImageIndex === -1) {
+              currentImageIndex = 0;
+            } else {
+              currentImageIndex++;
+            }
+            
+            displayImage();
+            updateDetectionList();
+          }
+        } catch(e) {
+          console.warn('Message error:', e);
+        }
+      };
+    }
+    
+    openWs();
+    updateDetectionList();
+  </script>
+</body>
+</html>

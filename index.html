@@ -447,11 +447,9 @@
       <div class="nav" style="display:flex;gap:8px">
         <a class="btn active" href="./index.html">Dashboard</a>
         <a class="btn" href="./controls.html">Controls</a>
-        <a class="btn" href="./defense-camera.html" title="Defense Camera">🛡️ Defense</a>
-        <a class="btn" href="./offense.html" title="เฉพาะโดรนฝ่ายรุก">Offense view</a>
-        <a class="btn" href="./camera.html" title="เฉพาะการตรวจจับจากกล้อง">Camera view</a>
-        <a class="btn" href="./imagery.html" title="Image Viewer">📹 Imagery</a>
-        <a class="btn" href="./history.html" title="ประวัติการตรวจจับ">History</a>
+        <a class="btn" href="./camera.html" title="Defense Camera">🛡️ Defense</a>
+        <a class="btn" href="./offense.html" title="เฉพาะโดรนฝ่ายรุก">🚀 Offense </a>
+        <a class="btn" href="./history.html" title="ประวัติการตรวจจับ">💾 History</a>
       </div>
     </div>
   </div>
@@ -554,20 +552,22 @@ const arrowLayer = L.layerGroup().addTo(map);
 
 // Camera marker at center
 const cameraIcon = L.divIcon({
-  html: `<div class="camera-marker"><div class="pulse-ring"></div><div class="camera-core">📹</div></div>`,
+  html: `<div style="width:32px;height:32px;border-radius:999px;background:linear-gradient(135deg,#22c55e,#0ea5e9);display:flex;align-items:center;justify-content:center;box-shadow:0 0 12px rgba(34,197,94,.7),0 0 18px rgba(56,189,248,.6);font-size:18px">📹</div>`,
   className: 'camera-icon',
-  iconSize: [48, 48],
-  iconAnchor: [24, 24]
+  iconSize: [32, 32],
+  iconAnchor: [16, 16]
 });
-L.marker(START, {icon: cameraIcon})
+
+L.marker(START, { icon: cameraIcon })
   .bindTooltip('🎥 CAMERA_01 (Fixed)', {
-    permanent: true,
+    // ไม่ใส่ permanent แล้ว → แสดงเฉพาะตอน hover/click
     direction: 'top',
     offset: [0, -10],
-    className: 'drone-label'
+    className: 'drone-label',
+    sticky: true
   })
-  .addTo(map)
-  .openTooltip();
+  .addTo(map);   // ❌ ไม่มี .openTooltip()
+
 
 /* ===================== ROLE COLORS ===================== */
 function getRole(id, routes){
@@ -865,11 +865,11 @@ function redraw(){
       : '#34d399';
 
     // draw main route
-    if(coords.length>=2) {
+      if(coords.length>=2) {
       L.polyline(coords,{
-        color:col,
-        weight:3,
-        opacity:.95
+      color:col,
+      weight:3,
+      opacity:.95
       }).addTo(routeLineLayer);
 
       // tail effect (เส้นประสำหรับ attack)
@@ -891,37 +891,51 @@ function redraw(){
     }
 
     // show drone icon at last point
-    if(sorted.length >= 1 && last){
-      let angle = 0;
-      if(sorted.length >= 2){
+if (sorted.length >= 1 && last) {
+    let angle = 0;
+    if (sorted.length >= 2) {
         const prev = sorted[sorted.length - 2];
-        angle = (Math.atan2(last.lon - prev.lon, last.lat - prev.lat) * 180 / Math.PI) || 0;
-      }
-
-      const droneSvg = `<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
-        <rect x="17" y="12" width="6" height="16" fill="${col}" rx="2" opacity="0.95"/>
-        <rect x="2" y="17" width="15" height="3" fill="${col}" rx="1.5"/>
-        <rect x="23" y="17" width="15" height="3" fill="${col}" rx="1.5"/>
-        <circle cx="20" cy="12" r="2" fill="${col}"/>
-      </svg>`;
-
-      const droneIcon = L.divIcon({
-        html: `<div class="drone-float" style="transform: rotate(${angle}deg); display:flex; align-items:center; justify-content:center">${droneSvg}</div>`,
-        className: 'drone-icon',
-        iconSize: [40, 40],
-        iconAnchor: [20, 20]
-      });
-
-      const marker = L.marker([last.lat,last.lon],{icon:droneIcon}).addTo(arrowLayer);
-      marker.bindTooltip(
-        `${id}\n${String(role).toUpperCase()}\nseq ${last.seq ?? '0'}`,
-        {permanent:true, direction:'top', offset:[0,-20], className:'drone-label'}
-      ).openTooltip();
+        angle = (Math.atan2(last.lon - prev.lon, last.lat - prev.lat) * 180) / Math.PI || 0;
     }
-  });
+
+    const droneSvg = `
+        <svg width="40" height="40" viewBox="0 0 40 40">
+            <rect x="17" y="12" width="6" height="16" fill="${col}" rx="2" opacity="0.95"/>
+            <rect x="2"  y="17" width="15" height="3" fill="${col}" rx="1.5"/>
+            <rect x="23" y="17" width="15" height="3" fill="${col}" rx="1.5"/>
+            <circle cx="20" cy="12" r="2" fill="${col}"/>
+        </svg>`;
+
+    const droneIcon = L.divIcon({
+        html: `<div style="transform:rotate(${angle}deg);">${droneSvg}</div>`,
+        className: "drone-icon",
+        iconSize: [40, 40],
+        iconAnchor: [20, 20],
+    });
+
+    const marker = L.marker([last.lat, last.lon], { icon: droneIcon }).addTo(arrowLayer);
+
+    const trackName = last.track_name || last.route_name || id;
+
+    marker.bindTooltip(
+        `${trackName} • ${String(role).toUpperCase()} • seq ${last.seq ?? 0}`,
+        {
+            direction: "top",
+            offset: [0, -20],
+            className: "drone-label",
+            sticky: true,       // only show when hover
+            permanent: false,   // never always show
+        }
+    );
+}
+
+// keep fixed zoom
+}, // <== ปิด forEach
+// <== ปิด redraw()
+
 
   // map maintains fixed zoom view (no auto-fit)
-}
+
 
 /* ===================== WS with BACKOFF ===================== */
 function setWsUI(s){
@@ -949,9 +963,8 @@ function setWsUI(s){
   chip.dataset.state = state;
 }
 
-let retry=0, ws=null, hb=null;
-
-function handleMsg(m){
+,let,retry=0,ws=null,hb=null);
+function handleMsg(m){}
   const t=m?.type, d=m?.data;
   if(t==='detection'&&d) pushDet(d);
   else if(t==='detections'&&Array.isArray(d)) d.forEach(pushDet);

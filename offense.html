@@ -99,7 +99,7 @@
     iconSize: [32, 32],
     iconAnchor: [16, 16]
   });
-  L.marker(START, {icon: cameraIcon}).bindTooltip('🎥 CAMERA_01 (Fixed)', {permanent: true, direction: 'top', offset: [0, -10], className: 'drone-label'}).addTo(map).openTooltip();
+  L.marker(START, {icon: cameraIcon}).bindTooltip('🎥 CAMERA_01', {permanent: true, direction: 'top', offset: [0, -10], className: 'drone-label'}).addTo(map).openTooltip();
 
   function pushRoute(x){
     if(!x||!x.drone_id||x.role!=='friendly') return; // Only track friendly drones

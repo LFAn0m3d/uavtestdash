@@ -1,0 +1,23 @@
+{
+  "name": "uavtestdash",
+  "version": "1.0.0",
+  "description": "",
+  "main": "sim-server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LFAn0m3d/uavtestdash.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/LFAn0m3d/uavtestdash/issues"
+  },
+  "homepage": "https://github.com/LFAn0m3d/uavtestdash#readme",
+  "dependencies": {
+    "ws": "^8.18.3"
+  }
+}

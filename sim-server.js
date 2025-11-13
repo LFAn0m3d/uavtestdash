@@ -4,9 +4,21 @@ const WebSocket = require('ws');
 const fs = require('fs');
 
 // ================== CONFIG ==================
-const PORT = 8765;
-const wss = new WebSocket.Server({ port: PORT });
-console.log('WS sim running on ws://localhost:' + PORT + '/stream');
+const PORT = process.env.PORT ? Number(process.env.PORT) : 8765;
+let wss;
+try {
+  wss = new WebSocket.Server({ port: PORT });
+  console.log('WS sim running on ws://localhost:' + PORT + '/stream');
+} catch (err) {
+  console.error('*** Failed to start WebSocket server ***');
+  if (err && err.code === 'EADDRINUSE') {
+    console.error('Port ' + PORT + ' is already in use.');
+    console.error('👉 ให้ลองปิดโปรเซสเก่าที่ใช้พอร์ตนี้ หรือรันด้วยคำสั่ง: PORT=8877 node sim-server.js');
+  } else {
+    console.error(err);
+  }
+  process.exit(1);
+}
 
 // จุดกลาง (กล้อง) - ใกล้ ๆ CRMA
 const baseLat = 14.296422;
